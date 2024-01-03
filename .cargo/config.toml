@@ -6,6 +6,14 @@ rustflags = [
     "-C", "default-linker-libraries"
 ]
 
+[target.xtensa-esp32-espidf]
+runner = "espflash flash --monitor"
+linker = "ldproxy"
+rustflags = [
+    "--cfg", "espidf_time64",
+    "-C", "default-linker-libraries"
+]
+
 [build]
 target = "riscv32imc-esp-espidf"
 #target = "x86_64-unknown-linux-gnu"
