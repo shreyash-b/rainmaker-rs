@@ -1,3 +1,5 @@
+use rainmaker::rainmaker_say_hello;
+
 fn main(){
-    println!("hello")
+    rainmaker_say_hello();
 }
