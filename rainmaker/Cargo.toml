@@ -7,3 +7,9 @@ edition = "2021"
 
 [dependencies]
 core_components = { path = "../core_components" }
+
+[target.'cfg(target_os="linux")'.dependencies]
+simple_logger = "4.3.3"
+
+[target.'cfg(target_os="espidf")'.dependencies]
+esp-idf-svc = "0.47.3"

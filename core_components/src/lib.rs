@@ -1,10 +1,11 @@
-#[cfg(target_os="espidf")]
-pub fn say_hello(){
-    println!("hello from esp");
+fn hello(name: &str){
+    log::info!("hello from {}", name);
 }
 
-#[cfg(target_os="linux")]
 pub fn say_hello(){
-    println!("hello from linux");
-}
+    #[cfg(target_os="espidf")]
+    hello("espidf");
 
+    #[cfg(target_os="linux")]
+    hello("linux");
+}
