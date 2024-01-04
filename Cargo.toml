@@ -2,3 +2,7 @@
 members = ["core_components", "rainmaker", "led_switch"]
 resolver = "2"
 license = "GPL-3.0-only"
+
+[profile.dev]
+opt-level = "z"
+debug = true
