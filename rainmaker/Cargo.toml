@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-core_components = { path = "../core_components" }
+components = { path = "../components" }
 
 [target.'cfg(target_os="linux")'.dependencies]
 simple_logger = "4.3.3"

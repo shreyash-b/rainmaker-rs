@@ -239,6 +239,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "components"
+version = "0.1.0"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "const_format"
 version = "0.2.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -263,13 +270,6 @@ name = "core-foundation-sys"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06ea2b9bc92be3c2baa9334a323ebca2d6f074ff852cd1d7b11064035cd3868f"
-
-[[package]]
-name = "core_components"
-version = "0.1.0"
-dependencies = [
- "log",
-]
 
 [[package]]
 name = "critical-section"
@@ -1113,7 +1113,7 @@ dependencies = [
 name = "rainmaker"
 version = "0.1.0"
 dependencies = [
- "core_components",
+ "components",
  "esp-idf-svc",
  "simple_logger",
 ]
