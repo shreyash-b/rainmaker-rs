@@ -8,12 +8,8 @@ edition = "2021"
 [dependencies]
 rainmaker = { path = "../rainmaker" }
 
-[target.'cfg(target_os="linux")'.dependencies]
-env_logger = "0.10.1"
-
 [target.'cfg(target_os="espidf")'.dependencies]
-esp-idf-svc = "0.47.3"
-log = "0.4.20" # used for setting log level
+esp-idf-svc = "0.47.3" # required for embuild
 
 [build-dependencies]
-embuild = "0.31.4"
+embuild = {version = "0.31.4", features = ["espidf"]}
