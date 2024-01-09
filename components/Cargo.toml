@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 log = "0.4.20"
+
+[target."cfg(target_os=\"linux\")".dependencies]
+tiny_http = { version = "0.12.0", default-features = false }

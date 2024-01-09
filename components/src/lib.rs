@@ -1,3 +1,5 @@
+pub mod http;
+
 fn hello(name: &str){
     log::info!("hello from {}", name);
 }
