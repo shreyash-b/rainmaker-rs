@@ -9,7 +9,7 @@ edition = "2021"
 rainmaker = { path = "../rainmaker" }
 
 [target.'cfg(target_os="espidf")'.dependencies]
-esp-idf-svc = "0.47.3" # required for embuild
+esp-idf-svc = { version = "0.47.3", default-features = false, features = ["binstart"] }
 
 [build-dependencies]
-embuild = {version = "0.31.4", features = ["espidf"]}
+embuild = {version = "0.31.4", default-features = false, features = ["espidf"]}
