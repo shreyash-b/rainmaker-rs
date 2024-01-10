@@ -1,3 +1,5 @@
+#![cfg(target_os="linux")]
+
 use std::net::SocketAddr;
 use std::collections::HashMap;
 
@@ -11,6 +13,15 @@ impl From<&tiny_http::Method> for HttpMethod{
             _ => HttpMethod::OTHER
         }
     }
+}
+
+impl From<&tiny_http::Request> for HttpRequest{
+    fn from(req: &tiny_http::Request) -> Self {
+       Self{
+            method: req.method().into()
+        } 
+    }
+
 }
 
 impl<'a, U> HttpServer<'a, tiny_http::Server, U>
@@ -38,9 +49,7 @@ where
          loop {
             log::info!("http server is listening");
             let req = self.server.recv().unwrap();
-            let http_request = HttpRequest{
-                method: req.method().into()
-            };
+            let http_request = HttpRequest::from(&req);
             let req_callback = self.listeners.as_ref().unwrap().get(req.url());
             let response = match req_callback {
                 Some(c) => c(http_request),
