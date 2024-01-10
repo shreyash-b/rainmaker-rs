@@ -15,11 +15,25 @@ impl From<&tiny_http::Method> for HttpMethod{
     }
 }
 
-impl From<&tiny_http::Request> for HttpRequest{
-    fn from(req: &tiny_http::Request) -> Self {
-       Self{
-            method: req.method().into()
-        } 
+impl From<&mut tiny_http::Request> for HttpRequest {
+    fn from(req: &mut tiny_http::Request) -> Self {
+
+        let req_len = req.body_length();
+        let mut buf: Vec<u8>;
+        match req_len {
+            Some(len) => {
+                buf = Vec::<u8>::with_capacity(len);
+                let reader = req.as_reader();
+                reader.read_to_end(&mut buf).unwrap();
+            },
+
+            None => buf = Vec::default(),
+        }
+
+        Self{
+            method: req.method().into(),
+            data: buf
+        }
     }
 
 }
@@ -48,8 +62,8 @@ where
     pub fn listen(&self) -> anyhow::Result<()> {
          loop {
             log::info!("http server is listening");
-            let req = self.server.recv().unwrap();
-            let http_request = HttpRequest::from(&req);
+            let mut req = self.server.recv().unwrap();
+            let http_request = HttpRequest::from(&mut req);
             let req_callback = self.listeners.as_ref().unwrap().get(req.url());
             let response = match req_callback {
                 Some(c) => c(http_request),

@@ -9,7 +9,8 @@ pub enum HttpMethod {
 
 pub struct HttpRequest {
     pub method: HttpMethod,
-    
+    // todo: convert to stream
+    pub data: Vec<u8>
 }
 
 pub struct HttpResponse<'a>{

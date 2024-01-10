@@ -13,4 +13,5 @@ log = { version = "0.4.20", default-features = false }
 tiny_http = { version = "0.12.0", default-features = false }
 
 [target."cfg(target_os=\"espidf\")".dependencies]
+embedded-svc = { version = "0.26.4", default-features = false }
 esp-idf-svc = { version = "0.47.3", default-features = false }

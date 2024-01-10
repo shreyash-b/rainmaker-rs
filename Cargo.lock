@@ -255,6 +255,7 @@ name = "components"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "embedded-svc",
  "esp-idf-svc",
  "log",
  "tiny_http",
