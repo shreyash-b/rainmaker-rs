@@ -1,3 +1,5 @@
+#![cfg(target_os="espidf")]
+
 use esp_idf_svc::{
     http::server::{EspHttpConnection, Request},
     io::Write,

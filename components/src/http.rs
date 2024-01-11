@@ -1,4 +1,4 @@
-pub mod base;
+pub(crate) mod base;
 pub use base::*;
 
 #[cfg(target_os="linux")]
