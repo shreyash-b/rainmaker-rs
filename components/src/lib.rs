@@ -1,3 +1,5 @@
+#![feature(map_try_insert)] // used in http_linux.rs
+
 pub mod http;
 
 fn hello(name: &str){
