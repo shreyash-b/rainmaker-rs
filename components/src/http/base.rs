@@ -51,15 +51,18 @@ pub struct HttpConfiguration {
 impl Default for HttpConfiguration {
     fn default() -> Self {
         HttpConfiguration{
+            #[cfg(target_os="espidf")]
+            port: 80,
             // to avoid running prog as sudo during dev
+            #[cfg(target_os="linux")]
             port: 8080,
             addr: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))
         }
     }
 }
 
-pub struct HttpServer<'a, T, U>{
+pub struct HttpServer<T>{
     pub(crate) server: T,
     #[allow(dead_code)]
-    pub(crate) listeners: Option<HashMap<&'a str, HashMap<HttpMethod, U>>>
+    pub(crate) listeners: Option<HashMap<String, HashMap<HttpMethod, Box<dyn Fn(HttpRequest) -> HttpResponse>>>>
 }

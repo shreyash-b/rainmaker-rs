@@ -33,7 +33,7 @@ impl From<&mut tiny_http::Request> for HttpRequest {
 
 }
 
-impl<'a> HttpServer<'a, tiny_http::Server, Box<dyn Fn(HttpRequest) -> HttpResponse>> {
+impl<'a> HttpServer<tiny_http::Server> {
 
 
     pub fn new(config: &HttpConfiguration) -> anyhow::Result<Self>{
@@ -43,13 +43,13 @@ impl<'a> HttpServer<'a, tiny_http::Server, Box<dyn Fn(HttpRequest) -> HttpRespon
         })
     }
 
-    pub fn add_listener(&mut self, path: &'a str, method: HttpMethod,  callback: Box<dyn Fn(HttpRequest) -> HttpResponse>){
+    pub fn add_listener(&mut self, path: String, method: HttpMethod,  callback: Box<dyn Fn(HttpRequest) -> HttpResponse>){
         // if inner hashmap does not exist for a path, create it
         let paths_hmap = self.listeners.as_mut().unwrap();
-        let _ = paths_hmap.try_insert(path, HashMap::new()); // we can safely ignore the err
+        let _ = paths_hmap.try_insert(path.clone(), HashMap::new()); // we can safely ignore the err
 
         // insert the callback and check for error
-        let callbacks_hashmap = paths_hmap.get_mut(path).unwrap();
+        let callbacks_hashmap = paths_hmap.get_mut(&path).unwrap();
         match callbacks_hashmap.try_insert(method, callback){
             Ok(_) => {},
             Err(_) => {
@@ -59,7 +59,7 @@ impl<'a> HttpServer<'a, tiny_http::Server, Box<dyn Fn(HttpRequest) -> HttpRespon
     }
 
 
-    pub fn listen(&self) -> anyhow::Result<()> {
+    pub fn listen(&self) {
         loop {
             log::info!("http server is listening");
             let mut req = self.server.recv().unwrap();

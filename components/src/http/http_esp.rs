@@ -29,7 +29,7 @@ impl Into<esp_idf_svc::http::Method> for HttpMethod{
 
     }
 }
-
+// from esp_idf_http_request to custom_request
 impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
     fn from(req: &mut Request<&mut EspHttpConnection>) -> Self {
         let buf_len = match req.content_len() {
@@ -48,7 +48,7 @@ impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
     }
 }
 
-impl<'a> HttpServer<'a, esp_idf_svc::http::server::EspHttpServer<'a>, Box<dyn Fn(HttpRequest) -> HttpResponse + Send>> {
+impl HttpServer<esp_idf_svc::http::server::EspHttpServer<'_>> {
     pub fn new(config: &HttpConfiguration) -> anyhow::Result<Self> {
         let mut http_config = esp_idf_svc::http::server::Configuration::default();
         http_config.http_port = config.port;
@@ -58,9 +58,14 @@ impl<'a> HttpServer<'a, esp_idf_svc::http::server::EspHttpServer<'a>, Box<dyn Fn
         })
     }
 
-    pub fn add_listener(&mut self, path: &'a str, method: HttpMethod,  callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send>) {
+    pub fn add_listener(
+        &mut self,
+        path: String,
+        method: HttpMethod,
+        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send>,
+    ) {
         self.server
-            .fn_handler(path, method.into(), move |mut req| {
+            .fn_handler(path.as_str(), method.into(), move |mut req| {
                 let user_req = HttpRequest::from(&mut req);
                 let user_response = callback(user_req);
                 req.into_ok_response()
@@ -72,10 +77,5 @@ impl<'a> HttpServer<'a, esp_idf_svc::http::server::EspHttpServer<'a>, Box<dyn Fn
             .unwrap();
     }
 
-    pub fn listen(&self) -> anyhow::Result<()> {
-        log::info!("http server is listening");
-        loop {
-            esp_idf_svc::hal::delay::Delay::new_default().delay_ms(1000)
-        }
-    }
+    pub fn listen(&self) {}
 }
