@@ -1,58 +1,176 @@
-#[cfg(target_os = "espidf")]
-use components::wifi::WifiMgr;
-use components::{
-    http::{HttpConfiguration, HttpRequest, HttpResponse, HttpServer},
-    protocomm::*,
-};
+use components::http::*;
+use components::protocomm::*;
+use components::wifi::{WifiConfig, WifiMgr};
 use serde_json::json;
-use prost::Message;
 
 include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 
-pub fn prov_test() {
-    #[cfg(target_os = "espidf")]
-    let mut wifi = WifiMgr::new();
+/*
+#[derive(Default)]
+pub enum WifiProvScheme {
+    #[default]
+    SoftAP,
+}
 
-    #[cfg(target_os = "espidf")]
-    wifi.set_softap();
+#[derive(Default)]
+pub struct WifiProvisioningConfig {
+    pub device_name: String,
+    pub scheme: WifiProvScheme,
+}
+pub struct WifiProvisioningMgr<'a> {
+    wifi_client: WifiMgr<'a>,
+    http_server: HttpServer<'a>,
+    config: WifiProvisioningConfig,
+}
 
-    #[cfg(target_os = "espidf")]
-    wifi.set_client("Connecting...", "0000@1111");
+impl<'a> WifiProvisioningMgr<'a> {
+    pub fn new(
+        wifi_client: WifiMgr<'a>,
+        http_server: HttpServer<'a>,
+        config: WifiProvisioningConfig,
+    ) -> Self {
+        let mut prov_mgr = Self {
+            wifi_client,
+            http_server,
+            config,
+        };
 
-    #[cfg(target_os = "espidf")]
-    wifi.start();
+        prov_mgr.add_listeners();
+        prov_mgr.init_ap();
 
-    let mut config = HttpConfiguration::default();
-
-    if cfg!(target_os = "espidf") || true {
-        log::info!("running on esp... changing http server port to 80");
-        config.port = 80;
+        prov_mgr
     }
 
-    let mut server = HttpServer::new(&config).unwrap();
+    pub fn start(&mut self) {
+        self.wifi_client.start();
+        self.http_server.listen();
+    }
+
+    fn add_listeners(&mut self) {
+        self.http_server.add_listener(
+            "/proto-ver".to_string(),
+            HttpMethod::POST,
+            Box::new(|_| HttpResponse::from_bytes("proto-ver")),
+        );
+
+        self.http_server.add_listener(
+            "/prov-session".to_string(),
+            HttpMethod::POST,
+            Box::new(|_| HttpResponse::from_bytes("prov-session")),
+        );
+        self.http_server.add_listener(
+            "/prov-config".to_string(),
+            HttpMethod::POST,
+            Box::new(|_| HttpResponse::from_bytes("prov-config")),
+        );
+        self.http_server.add_listener(
+            "/prov-scan".to_string(),
+            HttpMethod::POST,
+            Box::new(|_| HttpResponse::from_bytes("prov-scan")),
+        );
+    }
+
+    fn init_ap(&mut self) {
+        let apconf = WifiConfig {
+            ssid: format!("PROV_{}", self.config.device_name),
+            ..Default::default()
+        };
+
+        self.wifi_client.set_softap_config(apconf);
+    }
+}
+
+*/
+
+pub fn prov_test() {
+    let apconfig = WifiConfig {
+        ssid: "ESP_PROV123".into(),
+        ..Default::default()
+    };
+
+    let staconfig = WifiConfig {
+        ssid: "Connecting...".into(),
+        key: "0000@1111".into(),
+        auth: components::wifi::WifiAuthMode::Wpa2Personal,
+    };
+
+    let mut wifi = WifiMgr::new();
+
+    wifi.set_softap_config(apconfig);
+    wifi.set_client_config(staconfig);
+
+    wifi.start();
+    wifi.connect();
+
+    // let staconfig = WifiConfig {
+    //     ssid: "LINUX_PROV".into(),
+    //     ..Default::default()
+    // };
+
+    // wifi.set_client_config(staconfig);
+
+    let mut http_server_config = HttpConfiguration::default();
+
+    if cfg!(target_os = "espidf"){
+        log::info!("running on esp... changing http server port to 80");
+        http_server_config.port = 80;
+    }
+
+    let mut server = HttpServer::new(&http_server_config).unwrap();
 
     server.add_listener(
-        "/proto-ver",
+        "/proto-ver".into(),
         components::http::HttpMethod::POST,
         Box::new(proto_ver_callback),
     );
     server.add_listener(
-        "/prov-session",
+        "/prov-session".into(),
         components::http::HttpMethod::POST,
         Box::new(prov_session_callback),
     );
     server.add_listener(
-        "/prov-config",
+        "/prov-config".into(),
         components::http::HttpMethod::POST,
         Box::new(prov_config_callback),
     );
     server.add_listener(
-        "/prov-scan",
+        "/prov-scan".into(),
         components::http::HttpMethod::POST,
         Box::new(prov_scan_callback),
     );
+    server.add_listener(
+        "/cloud_user_assoc".into(),
+        components::http::HttpMethod::POST,
+        Box::new(cloud_user_assoc_callback),
+    );
 
-    server.listen().unwrap();
+    let device_name: &str;
+
+    if cfg!(target_os = "espidf") {
+        device_name = "ESP_PROV123"
+    } else {
+        device_name = "LINUX_PROV123"
+    };
+
+    let qr_data = json!({
+        "ver": "v1",
+        "name": device_name,
+        "pop": "",
+        "transport": "softap"
+    });
+
+    log::info!(
+        "visit https://rainmaker.espressif.com/qrcode.html?data={}",
+        qr_data.to_string()
+    );
+
+    // let qrcode = qr_terminal::TermQrCode::from_bytes(qr_data.to_string());
+    // qrcode.print();
+
+    // qr2term::print_qr(qt_data.to_string()).unwrap();
+
+    server.listen();
+    crate::prevent_drop();
 }
 
 fn proto_ver_callback(_req: HttpRequest) -> HttpResponse {
@@ -115,6 +233,30 @@ fn prov_scan_callback(mut req: HttpRequest) -> HttpResponse {
     HttpResponse::from_bytes(&*res)
 }
 
+fn cloud_user_assoc_callback(mut req: HttpRequest) -> HttpResponse {
+    let req_data = req.data();
+    let req_proto = RMakerConfigPayload::decode(&*req_data).unwrap();
+    let req_payload = req_proto.payload.unwrap();
+
+    let (user_id, secret_key) = match req_payload {
+        r_maker_config_payload::Payload::CmdSetUserMapping(p) => (p.user_id, p.secret_key),
+        _ => unreachable!(),
+    };
+
+    log::info!("received user_id={}, secret_key={}", user_id, secret_key);
+
+    let mut res_proto = RMakerConfigPayload::default();
+    res_proto.msg = RMakerConfigMsgType::TypeRespSetUserMapping.into();
+    res_proto.payload = Some(r_maker_config_payload::Payload::RespSetUserMapping(
+        RespSetUserMapping {
+            status: RMakerConfigStatus::Success.into(),
+            node_id: "58CF79DAC1E4".to_string(),
+        },
+    ));
+
+    let res = res_proto.encode_to_vec();
+    HttpResponse::from_bytes(&*res)
+}
 
 fn handle_cmd_set_config(req_payload: wi_fi_config_payload::Payload) -> Vec<u8> {
     match req_payload {
