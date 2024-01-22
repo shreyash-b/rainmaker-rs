@@ -15,7 +15,7 @@ pub fn rainmaker_say_hello() {
 #[cfg(target_os = "espidf")]
 // workaround function to connect wifi on esp
 // will be removed once wifi provisoining is implemented
-fn connect_wifi<'a>(ssid: &'a str, key: &'a str) -> EspWifi<'a> {
+pub fn connect_wifi<'a>(ssid: &'a str, key: &'a str) -> EspWifi<'a> {
     let peripherals = Peripherals::take().unwrap();
     let sysloop = EspSystemEventLoop::take().unwrap();
     // let nvs = EspDefaultNvsPartition::take().unwrap();
@@ -24,7 +24,7 @@ fn connect_wifi<'a>(ssid: &'a str, key: &'a str) -> EspWifi<'a> {
 
     wifi.set_configuration(&Configuration::Client(ClientConfiguration {
         ssid: ssid.into(),
-        auth_method: esp_idf_svc::wifi::AuthMethod::WPA2Personal,
+        auth_method: esp_idf_svc::wifi::AuthMethod::None,
         bssid: None,
         password: key.into(),
         channel: None,
@@ -55,5 +55,5 @@ pub fn rainmaker_init() {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     #[cfg(target_os = "linux")]
-    simple_logger::SimpleLogger::new().init().unwrap();
+    simple_logger::SimpleLogger::new().with_level(log::LevelFilter::Info).init().unwrap();
 }
