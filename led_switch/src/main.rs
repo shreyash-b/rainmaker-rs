@@ -13,6 +13,7 @@ fn main() {
     rainmaker::rainmaker_say_hello();
     
     /* ESP specific code : WiFi library integration to be done... */
+
     // let peripherals = esp_idf_svc::hal::peripherals::Peripherals::take().unwrap();
     // let sysloop = esp_idf_svc::eventloop::EspSystemEventLoop::take().unwrap();
     // let nvs = esp_idf_svc::nvs::EspDefaultNvsPartition::take().unwrap();

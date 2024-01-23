@@ -69,6 +69,7 @@ impl MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'_>> {
             },
         )
         .unwrap();
+        // check whether thread is getting created 
 
         Ok(Self { client })
     }
