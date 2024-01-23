@@ -1206,7 +1206,6 @@ dependencies = [
  "components",
  "esp-idf-svc",
  "log",
- "rumqttc",
  "simple_logger",
 ]
 
