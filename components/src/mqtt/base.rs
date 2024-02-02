@@ -14,6 +14,12 @@ pub struct MqttConfiguration<'a> {
     pub port: u16,
 }
 
+pub struct TLSconfiguration<'a> {
+    pub client_cert: &'a Vec<u8>,
+    pub private_key:&'a Vec<u8>,
+    pub server_cert: &'a Vec<u8>
+}
+
 pub struct PublishMessage {
     pub topic: String,
     pub payload: Vec<u8>,
