@@ -1,9 +1,15 @@
+use rainmaker::{wifi_prov::WifiProvisioningConfig, Rainmaker};
+
 fn main(){
     std::env::set_var("RUST_BACKTRACE", "1"); // for debugging
 
-    rainmaker::rainmaker_init();
-    rainmaker::rainmaker_say_hello();
-    rainmaker::wifi_prov::prov_test();
+    let mut rmaker = Rainmaker::new();
+    rmaker.init();
+    rmaker.init_prov(WifiProvisioningConfig{
+        device_name: "RMAKER_PROV123".to_string(),
+        ..Default::default()
+    });
+    rmaker.start_prov();
 
     rainmaker::prevent_drop();
 }

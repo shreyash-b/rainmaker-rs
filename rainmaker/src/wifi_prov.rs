@@ -1,11 +1,14 @@
+use std::marker::PhantomData;
+use std::sync::Arc;
+use std::sync::Mutex;
+
 use components::http::*;
 use components::protocomm::*;
 use components::wifi::{WifiConfig, WifiMgr};
 use serde_json::json;
 
-include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
+type WrappedInArcMutex<T> = Arc<Mutex<T>>;
 
-/*
 #[derive(Default)]
 pub enum WifiProvScheme {
     #[default]
@@ -17,22 +20,31 @@ pub struct WifiProvisioningConfig {
     pub device_name: String,
     pub scheme: WifiProvScheme,
 }
+
 pub struct WifiProvisioningMgr<'a> {
-    wifi_client: WifiMgr<'a>,
-    http_server: HttpServer<'a>,
+    http_server: WrappedInArcMutex<HttpServer<'a>>,
+    wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
     config: WifiProvisioningConfig,
+    // user_mapping_callback: Box<dyn FnMut(String, String)>,
+    // event_loop: EspSystemEventLoop,
+    _phantom: PhantomData<&'a str>, // for compiler to not complain about lifetime parameter
 }
 
 impl<'a> WifiProvisioningMgr<'a> {
     pub fn new(
-        wifi_client: WifiMgr<'a>,
-        http_server: HttpServer<'a>,
+        http_server: WrappedInArcMutex<HttpServer<'a>>,
+        wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
+        // user_mapping_callback: Box<dyn FnMut(String, String)>,
+        // event_loop: EspSystemEventLoop,
         config: WifiProvisioningConfig,
     ) -> Self {
         let mut prov_mgr = Self {
-            wifi_client,
             http_server,
+            wifi_client,
             config,
+            // event_loop,
+            // user_mapping_callback,
+            _phantom: PhantomData,
         };
 
         prov_mgr.add_listeners();
@@ -41,136 +53,63 @@ impl<'a> WifiProvisioningMgr<'a> {
         prov_mgr
     }
 
-    pub fn start(&mut self) {
-        self.wifi_client.start();
-        self.http_server.listen();
+    pub fn start(&self) {
+        let http_server = self.http_server.lock().unwrap();
+        let mut wifi_driv = self.wifi_client.lock().unwrap();
+
+        wifi_driv.start();
+        http_server.listen();
+    }
+
+    pub fn add_endpoint(&self, endpoint: String, callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send>){
+        // todo: look into how idf does it and make it transport independent
+        let mut http_server = self.http_server.lock().unwrap();
+        http_server.add_listener(format!("/{}", endpoint), 
+        HttpMethod::POST, callback)
+
     }
 
     fn add_listeners(&mut self) {
-        self.http_server.add_listener(
+        log::info!("adding provisioning listeners");
+        let mut http_server = self.http_server.lock().unwrap();
+        let wifi_driv_prov_scan = self.wifi_client.clone();
+        // let rmaker_cb = self.user_mapping_callback;
+
+        http_server.add_listener(
             "/proto-ver".to_string(),
             HttpMethod::POST,
-            Box::new(|_| HttpResponse::from_bytes("proto-ver")),
+            Box::new(proto_ver_callback),
         );
 
-        self.http_server.add_listener(
+        http_server.add_listener(
             "/prov-session".to_string(),
             HttpMethod::POST,
-            Box::new(|_| HttpResponse::from_bytes("prov-session")),
+            Box::new(prov_session_callback),
         );
-        self.http_server.add_listener(
+
+        http_server.add_listener(
             "/prov-config".to_string(),
             HttpMethod::POST,
-            Box::new(|_| HttpResponse::from_bytes("prov-config")),
+            Box::new(prov_config_callback),
         );
-        self.http_server.add_listener(
+
+        http_server.add_listener(
             "/prov-scan".to_string(),
             HttpMethod::POST,
-            Box::new(|_| HttpResponse::from_bytes("prov-scan")),
+            Box::new(move |req| -> HttpResponse { prov_scan_callback(req, wifi_driv_prov_scan.clone()) }),
         );
+
     }
 
     fn init_ap(&mut self) {
+        let mut wifi_driv = self.wifi_client.lock().unwrap();
         let apconf = WifiConfig {
             ssid: format!("PROV_{}", self.config.device_name),
             ..Default::default()
         };
 
-        self.wifi_client.set_softap_config(apconf);
+        wifi_driv.set_softap_config(apconf);
     }
-}
-
-*/
-
-pub fn prov_test() {
-    let apconfig = WifiConfig {
-        ssid: "ESP_PROV123".into(),
-        ..Default::default()
-    };
-
-    let staconfig = WifiConfig {
-        ssid: "Connecting...".into(),
-        key: "0000@1111".into(),
-        auth: components::wifi::WifiAuthMode::Wpa2Personal,
-    };
-
-    let mut wifi = WifiMgr::new();
-
-    wifi.set_softap_config(apconfig);
-    wifi.set_client_config(staconfig);
-
-    wifi.start();
-    wifi.connect();
-
-    // let staconfig = WifiConfig {
-    //     ssid: "LINUX_PROV".into(),
-    //     ..Default::default()
-    // };
-
-    // wifi.set_client_config(staconfig);
-
-    let mut http_server_config = HttpConfiguration::default();
-
-    if cfg!(target_os = "espidf"){
-        log::info!("running on esp... changing http server port to 80");
-        http_server_config.port = 80;
-    }
-
-    let mut server = HttpServer::new(&http_server_config).unwrap();
-
-    server.add_listener(
-        "/proto-ver".into(),
-        components::http::HttpMethod::POST,
-        Box::new(proto_ver_callback),
-    );
-    server.add_listener(
-        "/prov-session".into(),
-        components::http::HttpMethod::POST,
-        Box::new(prov_session_callback),
-    );
-    server.add_listener(
-        "/prov-config".into(),
-        components::http::HttpMethod::POST,
-        Box::new(prov_config_callback),
-    );
-    server.add_listener(
-        "/prov-scan".into(),
-        components::http::HttpMethod::POST,
-        Box::new(prov_scan_callback),
-    );
-    server.add_listener(
-        "/cloud_user_assoc".into(),
-        components::http::HttpMethod::POST,
-        Box::new(cloud_user_assoc_callback),
-    );
-
-    let device_name: &str;
-
-    if cfg!(target_os = "espidf") {
-        device_name = "ESP_PROV123"
-    } else {
-        device_name = "LINUX_PROV123"
-    };
-
-    let qr_data = json!({
-        "ver": "v1",
-        "name": device_name,
-        "pop": "",
-        "transport": "softap"
-    });
-
-    log::info!(
-        "visit https://rainmaker.espressif.com/qrcode.html?data={}",
-        qr_data.to_string()
-    );
-
-    // let qrcode = qr_terminal::TermQrCode::from_bytes(qr_data.to_string());
-    // qrcode.print();
-
-    // qr2term::print_qr(qt_data.to_string()).unwrap();
-
-    server.listen();
-    crate::prevent_drop();
 }
 
 fn proto_ver_callback(_req: HttpRequest) -> HttpResponse {
@@ -178,7 +117,7 @@ fn proto_ver_callback(_req: HttpRequest) -> HttpResponse {
      "prov": {
         "ver": "v1.1",
         "sec_ver" : 0,
-        "cap": ["wifi_scan", "no_pop", "no_sec"]
+        "cap": [/*"wifi_scan"*/, "no_pop", "no_sec"]
      }
     });
     HttpResponse::from_bytes(Vec::from(response.to_string()))
@@ -218,7 +157,10 @@ fn prov_config_callback(mut req: HttpRequest) -> HttpResponse {
     HttpResponse::from_bytes(&*res)
 }
 
-fn prov_scan_callback(mut req: HttpRequest) -> HttpResponse {
+fn prov_scan_callback<'a>(
+    mut req: HttpRequest,
+    wifi_driv: WrappedInArcMutex<WifiMgr<'a>>,
+) -> HttpResponse {
     let req_data = req.data();
     let req_proto = WiFiScanPayload::decode(&*req_data).unwrap();
     let msg_type = req_proto.msg();
@@ -226,35 +168,10 @@ fn prov_scan_callback(mut req: HttpRequest) -> HttpResponse {
     let res = match msg_type {
         WiFiScanMsgType::TypeCmdScanStart => handle_cmd_scan_start(),
         WiFiScanMsgType::TypeCmdScanStatus => handle_cmd_scan_status(),
-        WiFiScanMsgType::TypeCmdScanResult => handle_cmd_scan_result(),
+        WiFiScanMsgType::TypeCmdScanResult => handle_cmd_scan_result(wifi_driv),
         _ => unreachable!(),
     };
 
-    HttpResponse::from_bytes(&*res)
-}
-
-fn cloud_user_assoc_callback(mut req: HttpRequest) -> HttpResponse {
-    let req_data = req.data();
-    let req_proto = RMakerConfigPayload::decode(&*req_data).unwrap();
-    let req_payload = req_proto.payload.unwrap();
-
-    let (user_id, secret_key) = match req_payload {
-        r_maker_config_payload::Payload::CmdSetUserMapping(p) => (p.user_id, p.secret_key),
-        _ => unreachable!(),
-    };
-
-    log::info!("received user_id={}, secret_key={}", user_id, secret_key);
-
-    let mut res_proto = RMakerConfigPayload::default();
-    res_proto.msg = RMakerConfigMsgType::TypeRespSetUserMapping.into();
-    res_proto.payload = Some(r_maker_config_payload::Payload::RespSetUserMapping(
-        RespSetUserMapping {
-            status: RMakerConfigStatus::Success.into(),
-            node_id: "58CF79DAC1E4".to_string(),
-        },
-    ));
-
-    let res = res_proto.encode_to_vec();
     HttpResponse::from_bytes(&*res)
 }
 
@@ -315,10 +232,7 @@ fn handle_cmd_get_status() -> Vec<u8> {
         },
     ));
 
-    log::info!(
-        "let's fake current state of wifi as: {:?}",
-        resp_msg.payload
-    );
+    log::info!("faking current state of wifi");
     resp_msg.encode_to_vec()
 }
 
@@ -349,14 +263,20 @@ fn handle_cmd_scan_status() -> Vec<u8> {
     resp_msg.encode_to_vec()
 }
 
-fn handle_cmd_scan_result() -> Vec<u8> {
+fn handle_cmd_scan_result(_wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
     log::info!("sending scan result");
+
+    // let mut wifi_driv = wifi_driv.lock().unwrap();
+
     let mut resp_msg = WiFiScanPayload::default();
     resp_msg.msg = WiFiScanMsgType::TypeRespScanResult.into();
     resp_msg.status = Status::Success.into();
 
     let mut dummy_config = WiFiScanResult::default();
     dummy_config.ssid = "DOES_NOT_EXIST".as_bytes().into();
+
+    // todo: use actual scan results
+    // let scan_results = wifi_driv.scan();
 
     resp_msg.payload = Some(wi_fi_scan_payload::Payload::RespScanResult(
         RespScanResult {
