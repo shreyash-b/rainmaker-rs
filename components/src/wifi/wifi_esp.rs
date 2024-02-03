@@ -168,6 +168,7 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         ret_networks
     }
 
+    #[allow(dead_code)]
     fn check_restart_wifi(&mut self) {
         let wifi_connected = self.client.is_connected().unwrap();
 
