@@ -1,0 +1,31 @@
+{
+    "node_id": "58CF79DA4FD0",
+    "config_version": "2019-02-27",
+    "info": {},
+    "attributes": [],
+    "devices": [{
+        "name": "Light",
+        "type": "esp.device.lightbulb",
+        "primary": "power",
+        "params": [{
+            "name": "name",
+            "type": "esp.param.name",
+            "data_type": "string",
+            "properties": ["read", "write"]
+        }, {
+            "name": "power",
+            "data_type": "bool",
+            "properties": ["read", "write", "time_series"],
+            "ui_type": "esp.ui.toggle"
+        }, {
+            "name": "brightness",
+            "data_type": "int",
+            "properties": ["read", "write"],
+            "bounds": {
+                "min": 0,
+                "max": 100
+            },
+            "ui_type": "esp.ui.slider"
+        }]
+    }]
+}

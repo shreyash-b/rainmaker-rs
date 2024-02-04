@@ -1,7 +1,10 @@
 use components::http::{HttpConfiguration, HttpResponse, HttpServer};
+
 use components::say_hello;
 
-#[cfg(target_os="espidf")]
+pub mod mqtt;
+
+#[cfg(target_os = "espidf")]
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::peripherals::Peripherals,
@@ -28,7 +31,8 @@ pub fn connect_wifi<'a>(ssid: &'a str, key: &'a str) -> EspWifi<'a> {
         bssid: None,
         password: key.into(),
         channel: None,
-    })).expect("unable to set wifi config");
+    }))
+    .expect("unable to set wifi config");
 
     wifi.start().expect("unable to start wifi");
     wifi.connect().expect("unable to connect wifi");
@@ -55,5 +59,8 @@ pub fn rainmaker_init() {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     #[cfg(target_os = "linux")]
-    simple_logger::SimpleLogger::new().with_level(log::LevelFilter::Info).init().unwrap();
+    simple_logger::SimpleLogger::new()
+        .with_level(log::LevelFilter::Info)
+        .init()
+        .unwrap();
 }

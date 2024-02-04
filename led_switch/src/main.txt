@@ -1,0 +1,21 @@
+use serde::{Deserialize, Serialize};
+use serde_json::{Result, Value};
+
+// #[derive(Debug, Serialize, Deserialize, Clone)]
+struct Light {
+    power: bool,
+    brightness: i32,
+}
+
+fn main() {
+    let input = r#"
+        {
+            "power":"true",
+            "brightness":99
+        }
+    "#;
+    let v: Value = serde_json::from_str(input).unwrap();
+
+    println!("{}", v.to_string());
+}
+

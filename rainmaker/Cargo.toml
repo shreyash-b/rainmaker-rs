@@ -9,6 +9,8 @@ edition = "2021"
 anyhow = { version = "1.0.79", default-features = false }
 components = { path = "../components" }
 log = { version = "0.4.20", default-features = false }
+serde = { version = "1.0.196" }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [target.'cfg(target_os="linux")'.dependencies]
 simple_logger = "4.3.3"

@@ -35,7 +35,7 @@ impl From<&esp_idf_svc::mqtt::client::Event<esp_idf_svc::mqtt::client::EspMqttMe
 impl<'a> MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'a>> {
     pub fn new(
         config: &'static MqttConfiguration,
-        tls_certs: & 'static TLSconfiguration,
+        tls_certs: &'static TLSconfiguration,
         callback: Box<dyn Fn(MqttEvent) + Send + Sync>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 
