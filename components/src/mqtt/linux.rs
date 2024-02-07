@@ -43,9 +43,12 @@ impl From<&rumqttc::Event> for MqttEvent {
                 }
             },
 
-            rumqttc::Event::Outgoing(e) => {
-                log::info!("other outgoing event: {:?}", e);
-                MqttEvent::Other
+            rumqttc::Event::Outgoing(e) => match e {
+                rumqttc::Outgoing::Subscribe(_) => MqttEvent::Received,
+                _ => {
+                    log::warn!("other outgoing event: {:?}", e);
+                    MqttEvent::Other
+                }
             }
         }
     }

@@ -20,14 +20,15 @@ impl From<&esp_idf_svc::mqtt::client::Event<esp_idf_svc::mqtt::client::EspMqttMe
     ) -> Self {
         match value {
             esp_idf_svc::mqtt::client::Event::Connected(_) => MqttEvent::Connected,
+            esp_idf_svc::mqtt::client::Event::Published(_) => MqttEvent::Received,
+            esp_idf_svc::mqtt::client::Event::Subscribed(_) => MqttEvent::Received,
             esp_idf_svc::mqtt::client::Event::Received(m) => MqttEvent::Publish(PublishMessage {
                 topic: m.topic().unwrap().to_string(),
                 payload: Vec::from(m.data()),
             }),
             esp_idf_svc::mqtt::client::Event::Disconnected => MqttEvent::Disconnected,
             esp_idf_svc::mqtt::client::Event::BeforeConnect => MqttEvent::BeforeConnect,
-            esp_idf_svc::mqtt::client::Event::Published(_) => MqttEvent::Received,
-            _ => Self::Other,
+            _ => MqttEvent::Other,
         }
     }
 }
