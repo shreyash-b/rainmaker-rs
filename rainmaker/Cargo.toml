@@ -10,7 +10,6 @@ anyhow = { version = "1.0.79", default-features = false }
 components = { path = "../components" }
 log = { version = "0.4.20", default-features = false }
 prost = "0.12.3"
-qr_terminal = "0.0.1"
 serde_json = "1.0.111"
 
 [target.'cfg(target_os="linux")'.dependencies]
