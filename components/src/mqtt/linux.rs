@@ -20,7 +20,7 @@ impl From<&QoSLevel> for rumqttc::QoS {
     }
 }
 
-impl From<&rumqttc::Publish> for PublishMessage {
+impl From<&rumqttc::Publish> for ReceivedMessage {
     fn from(value: &rumqttc::Publish) -> Self {
         Self {
             topic: value.topic.clone(),
@@ -34,7 +34,7 @@ impl From<&rumqttc::Event> for MqttEvent {
         match value {
             rumqttc::Event::Incoming(e) => match e {
                 rumqttc::Packet::ConnAck(_) => MqttEvent::Connected,
-                rumqttc::Packet::Publish(m) => MqttEvent::Publish(m.into()),
+                rumqttc::Packet::Publish(m) => MqttEvent::Received(m.into()),
                 rumqttc::Packet::Disconnect => MqttEvent::Disconnected,
                 rumqttc::Packet::Connect(_) => MqttEvent::BeforeConnect,
                 _ => {

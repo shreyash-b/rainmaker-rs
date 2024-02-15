@@ -21,7 +21,7 @@ pub struct TLSconfiguration<'a> {
 }
 
 #[derive(Debug)]
-pub struct PublishMessage {
+pub struct ReceivedMessage {
     pub topic: String,
     pub payload: Vec<u8>,
 }
@@ -30,8 +30,8 @@ pub struct PublishMessage {
 pub enum MqttEvent {
     Connected,
     Disconnected,
-    Publish(PublishMessage),
+    Publish,
     BeforeConnect,
-    Received,
+    Received(ReceivedMessage),
     Other,
 }
