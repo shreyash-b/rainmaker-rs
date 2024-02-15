@@ -1,27 +1,44 @@
+#[derive(Debug)]
 pub struct WifiMgr<T> {
     #[allow(dead_code)]
     pub(crate) client: T,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub enum WifiAuthMode {
     #[default]
     None,
-    Wpa2Personal,
+    WEP,
+    WPA,
+    WPA2Personal,
+    WPAWPA2Personal,
+    WPA2Enterprise,
+    WPA3Personal,
+    WPA2WPA3Personal,
+    WAPIPersonal,
 }
 
-#[derive(Default)]
-pub struct WifiConfig {
+#[derive(Debug, Default)]
+pub struct WifiClientConfig {
     pub ssid: String,
-    pub key: String,
+    pub bssid: Vec<u8>,
     pub auth: WifiAuthMode,
+    pub password: String,
+    pub channel: u8
 }
 
-impl From<&WifiAuthMode> for crate::protocomm::WifiAuthMode{
-    fn from(value: &WifiAuthMode) -> Self {
-        match value{
-            WifiAuthMode::None => Self::Open,
-            WifiAuthMode::Wpa2Personal => Self::Wpa2Psk,
-        }
-    }
+#[derive(Debug, Default)]
+pub struct WifiApConfig {
+    pub ssid: String,
+    pub password: String,
+    pub auth: WifiAuthMode
+}
+
+#[derive(Debug, Default)]
+pub struct WifiApInfo {
+    pub ssid: String,
+    pub auth: WifiAuthMode,
+    pub bssid: Vec<u8>,
+    pub channel: u8,
+    pub signal_strength: i8
 }

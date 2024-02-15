@@ -2,10 +2,14 @@
 
 use crate::wifi::base::*;
 
-use embedded_svc::wifi::AccessPointInfo;
+use embedded_svc::{
+    ipv4::{Ipv4Addr, Mask, Subnet},
+    wifi::AccessPointInfo,
+};
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::prelude::Peripherals,
+    netif::{EspNetif, NetifConfiguration},
     wifi::{
         AccessPointConfiguration, AuthMethod, BlockingWifi, ClientConfiguration, Configuration,
         EspWifi,
@@ -15,8 +19,15 @@ use esp_idf_svc::{
 impl From<WifiAuthMode> for AuthMethod {
     fn from(value: WifiAuthMode) -> Self {
         match value {
-            WifiAuthMode::None => AuthMethod::None,
-            WifiAuthMode::Wpa2Personal => AuthMethod::WPA2Personal,
+            WifiAuthMode::None => Self::None,
+            WifiAuthMode::WEP => Self::WEP,
+            WifiAuthMode::WPA => Self::WPA,
+            WifiAuthMode::WPA2Personal => Self::WPA2Personal,
+            WifiAuthMode::WPAWPA2Personal => Self::WPAWPA2Personal,
+            WifiAuthMode::WPA2Enterprise => Self::WPA2Enterprise,
+            WifiAuthMode::WPA3Personal => Self::WPA3Personal,
+            WifiAuthMode::WPA2WPA3Personal => Self::WPA2WPA3Personal,
+            WifiAuthMode::WAPIPersonal => Self::WAPIPersonal,
         }
     }
 }
@@ -27,72 +38,109 @@ impl From<AuthMethod> for WifiAuthMode {
     fn from(value: AuthMethod) -> Self {
         match value {
             AuthMethod::None => Self::None,
-            AuthMethod::WEP => todo!(),
-            AuthMethod::WPA => todo!(),
-            AuthMethod::WPA2Personal => Self::Wpa2Personal,
-            AuthMethod::WPAWPA2Personal => todo!(),
-            AuthMethod::WPA2Enterprise => todo!(),
-            AuthMethod::WPA3Personal => todo!(),
-            AuthMethod::WPA2WPA3Personal => todo!(),
-            AuthMethod::WAPIPersonal => todo!(),
+            AuthMethod::WEP => Self::WEP,
+            AuthMethod::WPA => Self::WPA,
+            AuthMethod::WPA2Personal => Self::WPA2Personal,
+            AuthMethod::WPAWPA2Personal => Self::WPAWPA2Personal,
+            AuthMethod::WPA2Enterprise => Self::WPA2Enterprise,
+            AuthMethod::WPA3Personal => Self::WPA3Personal,
+            AuthMethod::WPA2WPA3Personal => Self::WPA2WPA3Personal,
+            AuthMethod::WAPIPersonal => Self::WAPIPersonal,
         }
     }
 }
 
-impl From<WifiConfig> for AccessPointConfiguration {
-    fn from(value: WifiConfig) -> Self {
+impl From<AccessPointInfo> for WifiApInfo {
+    fn from(value: AccessPointInfo) -> Self {
+        Self {
+            ssid: value.ssid.as_str().into(),
+            auth: value.auth_method.into(),
+            bssid: value.bssid.into(),
+            channel: value.channel,
+            signal_strength: value.signal_strength,
+        }
+    }
+}
+
+impl From<WifiApConfig> for AccessPointConfiguration {
+    fn from(value: WifiApConfig) -> Self {
         let mut config = AccessPointConfiguration::default();
         config.ssid = value.ssid.as_str().into();
-        config.password = value.key.as_str().into();
+        config.password = value.password.as_str().into();
         config.auth_method = value.auth.into();
 
         config
     }
 }
 
-impl From<AccessPointInfo> for WifiConfig{
-    fn from(value: AccessPointInfo) -> Self {
-        return Self{
+impl From<AccessPointConfiguration> for WifiApConfig{
+    fn from(value: AccessPointConfiguration) -> Self {
+        Self { 
+            ssid: value.ssid.as_str().into(), 
+            password: value.password.as_str().into(), 
+            auth: value.auth_method.into(), 
+        }
+    }
+}
+
+impl From<WifiClientConfig> for ClientConfiguration {
+    fn from(value: WifiClientConfig) -> Self {
+        let bssid = match value.bssid.try_into(){
+            Ok(v) => Some(v),
+            Err(_) => None,
+        };
+        Self {
             ssid: value.ssid.as_str().into(),
-            auth: value.auth_method.into(),
+            bssid,
+            auth_method: value.auth.into(),
+            password: value.password.as_str().into(),
+            channel: Some(value.channel),
             ..Default::default()
         }
     }
 }
 
-impl From<WifiConfig> for ClientConfiguration {
-    fn from(value: WifiConfig) -> Self {
-        let mut config = ClientConfiguration::default();
-        config.ssid = value.ssid.as_str().into();
-        config.password = value.key.as_str().into();
-        config.auth_method = value.auth.into();
-
-        config
+impl From<ClientConfiguration> for WifiClientConfig{
+    fn from(value: ClientConfiguration) -> Self {
+        Self { 
+            ssid: value.ssid.as_str().into(), 
+            bssid: value.bssid.unwrap_or([0; 6]).to_vec(), 
+            auth: value.auth_method.into(), 
+            password: value.password.as_str().into(), 
+            channel: value.channel.unwrap() 
+        }
     }
 }
 
 impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
     pub fn new() -> Self {
-        // TODO: find alternative for linux and take sysloop as argument
         let sysloop = EspSystemEventLoop::take().unwrap();
 
-        let wifi_client = BlockingWifi::wrap(
-            EspWifi::new(
-                Peripherals::take().unwrap().modem,
-                sysloop.clone(),
-                None,
-            )
-            .unwrap(),
-            sysloop,
-        )
-        .unwrap();    
+        let inner_client = EspWifi::new(Peripherals::take().unwrap().modem, sysloop.clone(), None).unwrap();
+
+
+        // TODO: by default access point in esp_idf_svc has 192.168.71.1 as the default gateway. However provisioning apps are configured for 192.168.4.1
+        // TODO: so change the default gateway. Following code should ideally work but life is not ideal. Debugging remains to be performed.
+
+        // let mut netif_router_config = NetifConfiguration::wifi_default_router();
+        // netif_router_config.ip_configuration = embedded_svc::ipv4::Configuration::Router(embedded_svc::ipv4::RouterConfiguration {
+        //     subnet: Subnet{
+        //         gateway: Ipv4Addr::new(192,168,4,1),
+        //         mask: Mask(24)
+        //     },
+        //     ..Default::default()
+        // });
+
+        // inner_client.swap_netif(EspNetif::new_with_conf(&NetifConfiguration::wifi_default_client()).unwrap(), EspNetif::new_with_conf(&netif_router_config).unwrap()).unwrap();
+
+        let wifi_client = BlockingWifi::wrap(inner_client, sysloop).unwrap();
 
         Self {
             client: wifi_client,
         }
     }
 
-    pub fn set_softap_config(&mut self, config: WifiConfig) {
+    pub fn set_ap_config(&mut self, config: WifiApConfig) {
         let apconfig = AccessPointConfiguration::from(config);
         let wifi_config: Configuration;
 
@@ -103,13 +151,16 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
             .as_client_conf_ref()
         {
             Some(config) => Configuration::Mixed(config.to_owned(), apconfig),
-            None => Configuration::AccessPoint(apconfig),
+            None => {
+                // for some reason esp_idf_svc sets 192.168.4.1 as the default gateway
+                Configuration::AccessPoint(apconfig)
+            }
         };
 
         self.client.set_configuration(&wifi_config).unwrap();
     }
 
-    pub fn set_client_config(&mut self, config: WifiConfig) {
+    pub fn set_client_config(&mut self, config: WifiClientConfig) {
         let staconfig = ClientConfiguration::from(config);
         let wifi_config: Configuration;
 
@@ -149,7 +200,17 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         }
     }
 
-    pub fn disconnect(&mut self){
+    pub fn get_wifi_config(&self) -> (Option<WifiClientConfig>, Option<WifiApConfig>){
+        match self.client.get_configuration().unwrap() {
+            Configuration::None => (None, None),
+            Configuration::Client(client_config) => (Some(client_config.into()), None),
+            Configuration::AccessPoint(ap_config) => (None, Some(ap_config.into())),
+            Configuration::Mixed(client_config, ap_config) => (Some(client_config.into()), Some(ap_config.into())),
+        }
+
+    }
+
+    pub fn disconnect(&mut self) {
         self.client.disconnect().unwrap();
     }
 
@@ -157,13 +218,13 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         self.client.stop().unwrap()
     }
 
-    pub fn scan(&mut self) -> Vec<WifiConfig> {
+    pub fn scan(&mut self) -> Vec<WifiApInfo> {
         let scan_networks = self.client.scan().unwrap();
-        let mut ret_networks = Vec::<WifiConfig>::new();
-        
+        let mut ret_networks = Vec::<WifiApInfo>::new();
+
         for netork in scan_networks.iter() {
             ret_networks.push(netork.to_owned().into())
-        };
+        }
 
         ret_networks
     }
