@@ -3,6 +3,8 @@ use components::http::{HttpConfiguration, HttpResponse, HttpServer};
 use components::say_hello;
 
 pub mod mqtt;
+// pub mod rmaker_devices;
+pub mod node;
 
 #[cfg(target_os = "espidf")]
 use esp_idf_svc::{

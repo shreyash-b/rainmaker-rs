@@ -49,7 +49,7 @@ impl From<&rumqttc::Event> for MqttEvent {
                     log::warn!("other outgoing event: {:?}", e);
                     MqttEvent::Other
                 }
-            }
+            },
         }
     }
 }

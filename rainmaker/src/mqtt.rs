@@ -17,7 +17,7 @@ pub fn mqtt_init() -> MqttClient<'static> {
         server_cert: Box::leak(Box::new(server_cert)),
     };
 
-    let mut client = MqttClient::new(
+    let client = MqttClient::new(
         Box::leak(Box::new(config)),
         Box::leak(Box::new(tls_certs)),
         Box::new(|event| match event {
@@ -29,13 +29,10 @@ pub fn mqtt_init() -> MqttClient<'static> {
             MqttEvent::Disconnected => log::error!("MQTT Disconnected"),
             MqttEvent::BeforeConnect => log::warn!("MQTT Connecting"),
             MqttEvent::Received => log::info!("Message Published"),
-            _ => log::warn!("Unaddressed Event"),
+            MqttEvent::Other => log::warn!("Unaddressed Event"),
         }),
     )
     .unwrap();
-
-    
-
 
     client
 }
@@ -45,5 +42,5 @@ pub fn mqtt_subscribe(client: &mut MqttClient, topic: &str) {
 }
 
 pub fn mqtt_publish(client: &mut MqttClient, topic: &str, payload: &str) {
-    MqttClient::publish(client, topic, &QoSLevel::AtMostOnce, payload.into());
+    client.publish(topic, &QoSLevel::AtMostOnce, payload.into());
 }

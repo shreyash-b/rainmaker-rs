@@ -15,7 +15,7 @@ embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-
 rainmaker = { path = "../rainmaker" }
 components = { path = "../components" }
 log = "0.4.20"
-serde = { version = "1.0.196" }
+serde = { version = "1.0.196", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [target.'cfg(target_os="espidf")'.dependencies]
