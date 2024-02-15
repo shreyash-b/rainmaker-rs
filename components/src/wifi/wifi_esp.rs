@@ -1,6 +1,7 @@
 #![cfg(target_os = "espidf")]
 
 use crate::wifi::base::*;
+use crate::error::Error;
 
 use embedded_svc::{
     ipv4::{Ipv4Addr, Mask, Subnet},
@@ -113,10 +114,10 @@ impl From<ClientConfiguration> for WifiClientConfig{
 }
 
 impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
-    pub fn new() -> Self {
-        let sysloop = EspSystemEventLoop::take().unwrap();
+    pub fn new() -> Result<Self, Error> {
+        let sysloop = EspSystemEventLoop::take()?;
 
-        let inner_client = EspWifi::new(Peripherals::take().unwrap().modem, sysloop.clone(), None).unwrap();
+        let inner_client = EspWifi::new(Peripherals::take()?.modem, sysloop.clone(), None)?;
 
 
         // TODO: by default access point in esp_idf_svc has 192.168.71.1 as the default gateway. However provisioning apps are configured for 192.168.4.1
@@ -133,21 +134,20 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
 
         // inner_client.swap_netif(EspNetif::new_with_conf(&NetifConfiguration::wifi_default_client()).unwrap(), EspNetif::new_with_conf(&netif_router_config).unwrap()).unwrap();
 
-        let wifi_client = BlockingWifi::wrap(inner_client, sysloop).unwrap();
+        let wifi_client = BlockingWifi::wrap(inner_client, sysloop)?;
 
-        Self {
+        Ok(Self {
             client: wifi_client,
-        }
+        })
     }
 
-    pub fn set_ap_config(&mut self, config: WifiApConfig) {
+    pub fn set_ap_config(&mut self, config: WifiApConfig) -> Result<(), Error>{
         let apconfig = AccessPointConfiguration::from(config);
         let wifi_config: Configuration;
 
         wifi_config = match self
             .client
-            .get_configuration()
-            .unwrap()
+            .get_configuration()?
             .as_client_conf_ref()
         {
             Some(config) => Configuration::Mixed(config.to_owned(), apconfig),
@@ -157,47 +157,52 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
             }
         };
 
-        self.client.set_configuration(&wifi_config).unwrap();
+        self.client.set_configuration(&wifi_config)?;
+        Ok(())
     }
 
-    pub fn set_client_config(&mut self, config: WifiClientConfig) {
+    pub fn set_client_config(&mut self, config: WifiClientConfig) -> Result<(), Error> {
         let staconfig = ClientConfiguration::from(config);
         let wifi_config: Configuration;
 
-        wifi_config = match self.client.get_configuration().unwrap().as_ap_conf_ref() {
+        wifi_config = match self.client.get_configuration()?.as_ap_conf_ref() {
             Some(config) => Configuration::Mixed(staconfig, config.to_owned()),
             None => Configuration::Client(staconfig),
         };
 
-        self.client.set_configuration(&wifi_config).unwrap();
+        self.client.set_configuration(&wifi_config)?;
 
-        self.check_reconnect_wifi();
+        self.check_reconnect_wifi()?;
+        Ok(())
     }
 
-    pub fn start(&mut self) {
-        self.client.start().unwrap();
+    pub fn start(&mut self) -> Result<(), Error>{
+        self.client.start()?;
+        Ok(())
     }
 
-    pub fn connect(&mut self) {
-        let wifi_config = match self.client.get_configuration().unwrap() {
+    pub fn connect(&mut self) -> Result<(), Error>{
+        let wifi_config = match self.client.get_configuration()? {
             Configuration::None => {
                 log::error!("cannot connect wifi: no config set");
-                return;
+                return Ok(())
             }
             Configuration::AccessPoint(_) => {
                 log::error!("cannot connect wifi: wifi in ap mode");
-                return;
+                return Ok(());
             }
             config => config,
         };
 
         let ssid = &wifi_config.as_client_conf_ref().unwrap().ssid;
-        self.client.connect().unwrap();
+        self.client.connect()?;
 
-        while !self.client.is_connected().unwrap() {
+        while !self.client.is_connected()? {
             log::info!("waiting for ssid={}", ssid);
             esp_idf_svc::hal::delay::Delay::new_default().delay_ms(100);
-        }
+        };
+
+        Ok(())
     }
 
     pub fn get_wifi_config(&self) -> (Option<WifiClientConfig>, Option<WifiApConfig>){
@@ -210,45 +215,51 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
 
     }
 
-    pub fn disconnect(&mut self) {
-        self.client.disconnect().unwrap();
+    pub fn disconnect(&mut self) -> Result<(), Error>{
+        self.client.disconnect()?;
+        Ok(())
     }
 
-    pub fn stop(&mut self) {
-        self.client.stop().unwrap()
+    pub fn stop(&mut self) -> Result<(), Error>{
+        self.client.stop()?;
+        Ok(())
     }
 
-    pub fn scan(&mut self) -> Vec<WifiApInfo> {
-        let scan_networks = self.client.scan().unwrap();
+    pub fn scan(&mut self) -> Result<Vec<WifiApInfo>, Error> {
+        let scan_networks = self.client.scan()?;
         let mut ret_networks = Vec::<WifiApInfo>::new();
 
         for netork in scan_networks.iter() {
             ret_networks.push(netork.to_owned().into())
         }
 
-        ret_networks
+        Ok(ret_networks)
     }
 
     #[allow(dead_code)]
-    fn check_restart_wifi(&mut self) {
-        let wifi_connected = self.client.is_connected().unwrap();
+    fn check_restart_wifi(&mut self) -> Result<(), Error> {
+        let wifi_connected = self.client.is_connected()?;
 
-        if self.client.is_started().unwrap() {
+        if self.client.is_started()? {
             log::warn!("restarting wifi");
-            self.stop();
-            self.start();
+            self.stop()?;
+            self.start()?;
             if wifi_connected {
-                self.connect();
+                self.connect()?;
             }
-        }
+        };
+
+        Ok(())
     }
 
-    fn check_reconnect_wifi(&mut self) {
-        if self.client.is_connected().unwrap() {
+    fn check_reconnect_wifi(&mut self) -> Result<(), Error> {
+        if self.client.is_connected()? {
             log::warn!("reconnecting wifi");
-            self.disconnect();
+            self.disconnect()?;
             esp_idf_svc::hal::delay::Delay::new_default().delay_ms(2000);
-            self.connect()
+            self.connect()?;
         }
+
+        Ok(())
     }
 }

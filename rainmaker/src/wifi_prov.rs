@@ -7,6 +7,8 @@ use components::protocomm::*;
 use components::wifi::*;
 use serde_json::json;
 
+use crate::error::RMakerError;
+
 type WrappedInArcMutex<T> = Arc<Mutex<T>>;
 
 #[derive(Default)]
@@ -53,14 +55,16 @@ impl<'a> WifiProvisioningMgr<'a> {
         prov_mgr
     }
 
-    pub fn start(&self) {
+    pub fn start(&self) -> Result<(), RMakerError>{
         let http_server = self.http_server.lock().unwrap();
         let mut wifi_driv = self.wifi_client.lock().unwrap();
 
-        wifi_driv.set_client_config(WifiClientConfig::default());
+        wifi_driv.set_client_config(WifiClientConfig::default())?;
 
-        wifi_driv.start();
+        wifi_driv.start()?;
         http_server.listen();
+
+        Ok(())
     }
 
     pub fn add_endpoint(&self, endpoint: String, callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send>){
@@ -108,14 +112,14 @@ impl<'a> WifiProvisioningMgr<'a> {
 
     }
 
-    fn init_ap(&mut self) {
+    fn init_ap(&mut self){
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         let apconf = WifiApConfig {
             ssid: format!("PROV_{}", self.config.device_name),
             ..Default::default()
         };
 
-        wifi_driv.set_ap_config(apconf);
+        wifi_driv.set_ap_config(apconf).unwrap();
     }
 }
 
@@ -190,7 +194,7 @@ fn handle_cmd_set_config(req_payload: wi_fi_config_payload::Payload, wifi_driv: 
                 "received wifi-config : {:?}",
                 config.clone(),
             );
-
+            
             let wifi_client_config = WifiClientConfig{
                 ssid: String::from_utf8(config.ssid).unwrap(),
                 password: String::from_utf8(config.passphrase).unwrap(),
@@ -198,9 +202,13 @@ fn handle_cmd_set_config(req_payload: wi_fi_config_payload::Payload, wifi_driv: 
                 ..Default::default()
             };
 
-            wifi_driv.set_client_config(wifi_client_config);
-            wifi_driv.connect();
-
+            wifi_driv.set_client_config(wifi_client_config).unwrap();
+            let conn_result = wifi_driv.connect();
+            match conn_result{
+                Ok(_) => {},
+                Err(_) => {}
+            }
+            
             let mut res_data = WiFiConfigPayload::default();
             res_data.msg = WiFiConfigMsgType::TypeRespSetConfig.into();
             res_data.payload = Some(wi_fi_config_payload::Payload::RespSetConfig(
@@ -290,7 +298,7 @@ fn handle_cmd_scan_result(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> 
     resp_msg.msg = WiFiScanMsgType::TypeRespScanResult.into();
     resp_msg.status = Status::Success.into();
 
-    let wifi_networks = wifi_driv.scan();
+    let wifi_networks = wifi_driv.scan().unwrap();
     let mut scan_results = Vec::<WiFiScanResult>::new();
 
     for entry in wifi_networks{
