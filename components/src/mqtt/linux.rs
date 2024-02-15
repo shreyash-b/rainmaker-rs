@@ -20,7 +20,7 @@ impl From<&QoSLevel> for rumqttc::QoS {
     }
 }
 
-impl From<&rumqttc::Publish> for PublishMessage {
+impl From<&rumqttc::Publish> for ReceivedMessage {
     fn from(value: &rumqttc::Publish) -> Self {
         Self {
             topic: value.topic.clone(),
@@ -34,7 +34,7 @@ impl From<&rumqttc::Event> for MqttEvent {
         match value {
             rumqttc::Event::Incoming(e) => match e {
                 rumqttc::Packet::ConnAck(_) => MqttEvent::Connected,
-                rumqttc::Packet::Publish(m) => MqttEvent::Publish(m.into()),
+                rumqttc::Packet::Publish(m) => MqttEvent::Received(m.into()),
                 rumqttc::Packet::Disconnect => MqttEvent::Disconnected,
                 rumqttc::Packet::Connect(_) => MqttEvent::BeforeConnect,
                 _ => {
@@ -43,13 +43,10 @@ impl From<&rumqttc::Event> for MqttEvent {
                 }
             },
 
-            rumqttc::Event::Outgoing(e) => match e {
-                rumqttc::Outgoing::Subscribe(_) => MqttEvent::Received,
-                _ => {
-                    log::warn!("other outgoing event: {:?}", e);
-                    MqttEvent::Other
-                }
-            },
+            rumqttc::Event::Outgoing(e) => {
+                log::info!("other outgoing event: {:?}", e);
+                MqttEvent::Other
+            }
         }
     }
 }
@@ -57,21 +54,17 @@ impl From<&rumqttc::Event> for MqttEvent {
 impl MqttClient<rumqttc::Client> {
     pub fn new(
         config: &MqttConfiguration,
-        tlscerts: &TLSconfiguration,
+        tlscerts: &'static TLSconfiguration,
         callback: Box<dyn Fn(MqttEvent) + Send>,
     ) -> anyhow::Result<Self> {
         let mut option = rumqttc::MqttOptions::new(&*config.clientid, &*config.host, config.port);
-
         option.transport();
-
+        
         option.set_keep_alive(std::time::Duration::from_secs(60));
 
         option.set_transport(rumqttc::Transport::tls(
             tlscerts.server_cert.to_vec(),
-            Some((
-                tlscerts.client_cert.to_vec(),
-                rumqttc::Key::RSA(tlscerts.private_key.to_vec()),
-            )),
+            Some((tlscerts.client_cert.to_vec(), rumqttc::Key::RSA(tlscerts.private_key.to_vec()))),
             None,
         ));
         let (client, mut conn) = rumqttc::Client::new(option, 5);

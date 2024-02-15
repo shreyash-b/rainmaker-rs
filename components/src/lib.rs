@@ -1,5 +1,10 @@
+#![feature(map_try_insert)] // used in http_linux.rs
+
 pub mod http;
+pub mod wifi;
+pub mod protocomm;
 pub mod mqtt;
+pub mod error;
 
 fn hello(name: &str){
     log::info!("hello from {}", name);

@@ -1,30 +1,45 @@
 use std::{collections::HashMap, net::{IpAddr, Ipv4Addr}};
 
-
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HttpMethod {
     GET,
     POST,
-    OTHER
 }
 
-pub struct HttpRequest {
-    pub method: HttpMethod,
-    
+pub struct HttpRequest{
+    pub(crate) method: HttpMethod,
+    // todo: convert to stream
+    pub(crate) data: Vec<u8>,
+    pub(crate) url: String
 }
 
-pub struct HttpResponse<'a>{
-    data: &'a [u8]
+impl HttpRequest{
+    pub fn method(&self) -> HttpMethod{ self.method }
+
+    pub fn data(&mut self) -> Vec<u8> {
+        self.data.clone()
+    }
+
+    pub fn url(&self) -> String {
+        self.url.clone()
+    }
 }
 
-impl<'a> HttpResponse<'a> {
-    pub fn from_bytes(inp: &'a [u8]) -> Self{
+pub struct HttpResponse{
+    data: Vec<u8>
+}
+
+impl HttpResponse{
+    pub fn from_bytes<D> (inp: D) -> Self
+    where D: Into<Vec<u8>>
+    {
         HttpResponse{
-            data: inp
+            data: inp.into()
         }
     }
 
-    pub fn get_bytes(&self) -> &[u8]{
-        self.data
+    pub fn get_bytes_vectored(&self) -> Vec::<u8>{
+        self.data.clone()
     }
 }
 
@@ -36,15 +51,18 @@ pub struct HttpConfiguration {
 impl Default for HttpConfiguration {
     fn default() -> Self {
         HttpConfiguration{
+            #[cfg(target_os="espidf")]
+            port: 80,
             // to avoid running prog as sudo during dev
+            #[cfg(target_os="linux")]
             port: 8080,
             addr: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))
         }
     }
 }
 
-pub struct HttpServer<'a, T, U>{
+pub struct HttpServer<T>{
     pub(crate) server: T,
     #[allow(dead_code)]
-    pub(crate) listeners: Option<HashMap<&'a str, U>>
+    pub(crate) listeners: Option<HashMap<String, HashMap<HttpMethod, Box<dyn Fn(HttpRequest) -> HttpResponse>>>>
 }
