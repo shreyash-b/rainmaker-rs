@@ -1,6 +1,9 @@
 include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 
 pub mod wifi_prov;
+pub mod error;
+use error::RMakerError;
+
 use components::{
     http::{HttpConfiguration, HttpServer},
     mqtt::{self, MqttClient, MqttConfiguration, TLSconfiguration},
@@ -24,11 +27,11 @@ pub struct Rainmaker<'a> {
     mqtt_client: WrappedInArcMutex<MqttClient<'a>>, 
 }
 
-impl<'a> Rainmaker<'a> {
-    pub fn new()  -> Self{
+impl Rainmaker<'static> {
+    pub fn new()  -> Result<Self, RMakerError>{
         // let event_loop = EspSystemEventLoop::take().unwrap();
         let http_config = HttpConfiguration::default();
-        let wifi_driv = WifiMgr::new();
+        let wifi_driv = WifiMgr::new()?;
         let http_server = HttpServer::new(&http_config).unwrap();
 
         let node_id = "58CF79DAC1E4".to_string();
@@ -60,13 +63,13 @@ impl<'a> Rainmaker<'a> {
         )
         .unwrap();
 
-        Self {
+        Ok(Self {
             node_id,
             http_server: Arc::new(Mutex::new(http_server)),
             wifi_driv: Arc::new(Mutex::new(wifi_driv)),
             prov_mgr: None,
             mqtt_client: Arc::new(Mutex::new(mqtt_client)),
-        }
+        })
     }
 
     pub fn init(&self) {
@@ -77,12 +80,12 @@ impl<'a> Rainmaker<'a> {
         simple_logger::SimpleLogger::default().with_level(log::LevelFilter::Info).init().unwrap();
     }
 
-    pub fn init_prov(&mut self, prov_config: WifiProvisioningConfig) {
-        #[cfg(target_os="linux")]
+    pub fn init_prov(&mut self, prov_config: WifiProvisioningConfig){
+        // #[cfg(target_os="linux")]
         let mqtt_client = Some(self.mqtt_client.clone());
 
-        #[cfg(target_os="espidf")]
-        let mqtt_client = None;
+        // #[cfg(target_os="espidf")]
+        // let mqtt_client = None;
 
         let node_id = self.node_id.clone();
 
@@ -107,7 +110,7 @@ impl<'a> Rainmaker<'a> {
 
         if !already_provisioned{
             log::info!("Node not provisioned previously. Starting Wi-Fi Provisioning");
-            self.prov_mgr.as_ref().unwrap().start();
+            self.prov_mgr.as_ref().unwrap().start().unwrap();
         } else {
             log::info!("Wi-Fi provisioning already done")
         }

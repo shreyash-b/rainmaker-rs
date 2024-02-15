@@ -1,11 +1,12 @@
 use std::{collections::HashMap, net::{IpAddr, Ipv4Addr}};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HttpMethod {
     GET,
     POST,
 }
 
+#[derive(Debug)]
 pub struct HttpRequest{
     pub(crate) method: HttpMethod,
     // todo: convert to stream
@@ -25,6 +26,7 @@ impl HttpRequest{
     }
 }
 
+#[derive(Debug)]
 pub struct HttpResponse{
     data: Vec<u8>
 }
@@ -43,6 +45,7 @@ impl HttpResponse{
     }
 }
 
+#[derive(Debug)]
 pub struct HttpConfiguration {
     pub port: u16,
     pub addr: IpAddr

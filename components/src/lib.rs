@@ -4,6 +4,7 @@ pub mod http;
 pub mod wifi;
 pub mod protocomm;
 pub mod mqtt;
+pub mod error;
 
 fn hello(name: &str){
     log::info!("hello from {}", name);
