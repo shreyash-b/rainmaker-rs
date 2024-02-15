@@ -195,7 +195,15 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         };
 
         let ssid = &wifi_config.as_client_conf_ref().unwrap().ssid;
-        self.client.connect().unwrap();
+        match self.client.connect(){
+            Ok(_) => {},
+            Err(e) => {
+                if e.code() == 263 {
+                    log::warn!("timeout while trying to connect wifi... retrying");
+                    self.client.connect().unwrap();
+                }
+            },
+        };
 
         while !self.client.is_connected()? {
             log::info!("waiting for ssid={}", ssid);
