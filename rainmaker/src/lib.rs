@@ -1,16 +1,17 @@
 include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 
-pub mod wifi_prov;
 pub mod error;
-use error::RMakerError;
+pub mod wifi_prov;
+pub mod node;
 
 use components::{
     http::{HttpConfiguration, HttpServer},
     mqtt::{self, MqttClient, MqttConfiguration, TLSconfiguration},
-    wifi::WifiMgr,
+    wifi::{WifiClientConfig, WifiMgr},
 };
+use error::RMakerError;
 use serde_json::json;
-use std::sync::{Arc, Mutex};
+use std::{fmt::format, sync::{Arc, Mutex}};
 
 use components::http::{HttpRequest, HttpResponse};
 use prost::Message;
@@ -24,7 +25,8 @@ pub struct Rainmaker<'a> {
     wifi_driv: WrappedInArcMutex<WifiMgr<'a>>,
     prov_mgr: Option<wifi_prov::WifiProvisioningMgr<'a>>,
     #[allow(dead_code)] // remove this later when mqtt client passing works for user_cloud_mapping on esp
-    mqtt_client: WrappedInArcMutex<MqttClient<'a>>, 
+    mqtt_client: WrappedInArcMutex<MqttClient<'a>>,
+    node: Option<node::Node>,
 }
 
 impl Rainmaker<'static> {
@@ -53,8 +55,10 @@ impl Rainmaker<'static> {
         let mqtt_client = MqttClient::new(
             &MqttConfiguration {
                 host: "a1p72mufdu6064-ats.iot.us-east-1.amazonaws.com",
+                // host: "127.0.0.1",
                 clientid: node_id.clone().as_str(),
                 port: 8883,
+                // port: 1883,
             },
             Box::leak(Box::new(mqtt_tls_config)),
             Box::new(|event| {
@@ -69,6 +73,7 @@ impl Rainmaker<'static> {
             wifi_driv: Arc::new(Mutex::new(wifi_driv)),
             prov_mgr: None,
             mqtt_client: Arc::new(Mutex::new(mqtt_client)),
+            node: None,
         })
     }
 
@@ -76,8 +81,42 @@ impl Rainmaker<'static> {
         #[cfg(target_os = "espidf")]
         esp_idf_svc::log::EspLogger::initialize_default();
 
+        let mut wifi = self.wifi_driv.lock().unwrap();
+        let wifi_config = WifiClientConfig{
+            ssid: "Connecting....".to_string(),
+            password: "0000@1111".to_string(),
+            ..Default::default()
+        };
+        wifi.set_client_config(wifi_config).unwrap();
+        wifi.start().unwrap();
+        match wifi.connect(){
+            Ok(_) => {},
+            Err(_) => {log::error!("unable to connect wifi!")},
+        };
+
         #[cfg(target_os = "linux")]
         simple_logger::SimpleLogger::default().with_level(log::LevelFilter::Info).init().unwrap();
+    }
+
+    pub fn start(&self) -> Result<(), RMakerError> {
+        let curr_node = &self.node;
+        let mut mqtt = self.mqtt_client.lock().unwrap();
+        let node_config_topic = format!("node/{}/config", self.node_id.clone());
+
+        match curr_node {
+            Some(n) => {
+                let node_config = serde_json::to_string(n).unwrap();
+                log::info!("nodeconfig: {:?}", node_config);
+                mqtt.publish(&node_config_topic, &mqtt::QoSLevel::AtLeastOnce, node_config.into())
+            },
+            None => panic!("error while starting: node not registered"),
+        }
+
+        Ok(())
+    }
+
+    pub fn register_node(&mut self, _node: node::Node) {
+        self.node = Some(_node);
     }
 
     pub fn init_prov(&mut self, prov_config: WifiProvisioningConfig){
