@@ -5,6 +5,7 @@ pub mod wifi;
 pub mod protocomm;
 pub mod mqtt;
 pub mod error;
+pub mod persistent_storage;
 
 fn hello(name: &str){
     log::info!("hello from {}", name);

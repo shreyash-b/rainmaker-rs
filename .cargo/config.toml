@@ -1,5 +1,5 @@
 [target.riscv32imc-esp-espidf]
-runner = "espflash flash --monitor"
+runner = "espflash flash --partition-table partitions.csv --monitor"
 linker = "ldproxy"
 rustflags = [
     "--cfg", "espidf_time64",
@@ -7,7 +7,7 @@ rustflags = [
 ]
 
 [target.xtensa-esp32-espidf]
-runner = "espflash flash --monitor"
+runner = "espflash flash --partition-table partitions.csv --monitor"
 linker = "ldproxy"
 rustflags = [
     "--cfg", "espidf_time64",
