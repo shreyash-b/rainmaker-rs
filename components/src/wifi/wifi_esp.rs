@@ -134,7 +134,9 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
 
         // inner_client.swap_netif(EspNetif::new_with_conf(&NetifConfiguration::wifi_default_client()).unwrap(), EspNetif::new_with_conf(&netif_router_config).unwrap()).unwrap();
 
-        let wifi_client = BlockingWifi::wrap(inner_client, sysloop)?;
+        let mut wifi_client = BlockingWifi::wrap(inner_client, sysloop)?;
+        // configuration defaults to sta + softap, and we don't want that
+        wifi_client.set_configuration(&Configuration::None)?;
 
         Ok(Self {
             client: wifi_client,
@@ -195,6 +197,7 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         };
 
         let ssid = &wifi_config.as_client_conf_ref().unwrap().ssid;
+        
         match self.client.connect(){
             Ok(_) => {},
             Err(e) => {

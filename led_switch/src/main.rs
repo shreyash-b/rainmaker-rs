@@ -21,9 +21,9 @@ fn main() -> Result<(), RMakerError>{
     // rmaker.start_prov();
     rmaker.register_node(node);
     rmaker.init();
-    rmaker.start().unwrap();
-
+    rmaker.init_wifi();
+    rmaker.start()?;
     rainmaker::prevent_drop();
-
+    
     Ok(())
 }

@@ -3,6 +3,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use components::http::*;
+use components::persistent_storage::Nvs;
+use components::persistent_storage::NvsPartition;
 use components::protocomm::*;
 use components::wifi::*;
 use serde_json::json;
@@ -26,7 +28,6 @@ pub struct WifiProvisioningConfig {
 pub struct WifiProvisioningMgr<'a> {
     http_server: WrappedInArcMutex<HttpServer<'a>>,
     wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
-    config: WifiProvisioningConfig,
     // user_mapping_callback: Box<dyn FnMut(String, String)>,
     // event_loop: EspSystemEventLoop,
     _phantom: PhantomData<&'a str>, // for compiler to not complain about lifetime parameter
@@ -36,32 +37,29 @@ impl<'a> WifiProvisioningMgr<'a> {
     pub fn new(
         http_server: WrappedInArcMutex<HttpServer<'a>>,
         wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
-        // user_mapping_callback: Box<dyn FnMut(String, String)>,
-        // event_loop: EspSystemEventLoop,
-        config: WifiProvisioningConfig,
     ) -> Self {
-        let mut prov_mgr = Self {
+        Self {
             http_server,
             wifi_client,
-            config,
             // event_loop,
             // user_mapping_callback,
             _phantom: PhantomData,
-        };
-
-        prov_mgr.add_listeners();
-        prov_mgr.init_ap();
-
-        prov_mgr
+        }
     }
-
+    
+    pub fn init(&mut self, config: WifiProvisioningConfig){
+        self.init_ap(config.device_name);
+        self.add_listeners();
+    }
+    
     pub fn start(&self) -> Result<(), RMakerError>{
         let http_server = self.http_server.lock().unwrap();
+
         let mut wifi_driv = self.wifi_client.lock().unwrap();
-
         wifi_driv.set_client_config(WifiClientConfig::default())?;
-
         wifi_driv.start()?;
+        drop(wifi_driv);
+
         http_server.listen();
 
         Ok(())
@@ -75,9 +73,17 @@ impl<'a> WifiProvisioningMgr<'a> {
 
     }
 
-    pub fn is_provisioned(&self) -> bool {
-        // TODO: implement a persistent storage solution
-        false
+    pub fn get_provisioned_creds(&self) -> Option<(String, String)> {
+        let nvs = Nvs::new(NvsPartition::new("nvs").unwrap(), "wifi_creds").unwrap();
+        let ssid_nvs = nvs.get_bytes("ssid");
+        if ssid_nvs == None{
+            None
+        } else {
+            let ssid = String::from_utf8(ssid_nvs.unwrap()).unwrap();
+            let password = String::from_utf8(nvs.get_bytes("password").unwrap()).unwrap(); // test for empty password
+
+            Some((ssid, password))
+        }
     }
 
     fn add_listeners(&mut self) {
@@ -112,10 +118,10 @@ impl<'a> WifiProvisioningMgr<'a> {
 
     }
 
-    fn init_ap(&mut self){
+    fn init_ap(&mut self, device_name: String){
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         let apconf = WifiApConfig {
-            ssid: format!("PROV_{}", self.config.device_name),
+            ssid: format!("PROV_{}", device_name),
             ..Default::default()
         };
 
@@ -135,10 +141,6 @@ fn proto_ver_callback(_req: HttpRequest) -> HttpResponse {
 }
 
 fn prov_session_callback(mut _req: HttpRequest) -> HttpResponse {
-    log::info!(
-        "received: {:?}",
-        SessionData::decode(&*_req.data()).unwrap()
-    );
 
     let mut res_proto = SessionData::default();
     res_proto.set_sec_ver(SecSchemeVersion::SecScheme0);
@@ -190,10 +192,11 @@ fn handle_cmd_set_config(req_payload: wi_fi_config_payload::Payload, wifi_driv: 
     let mut wifi_driv = wifi_driv.lock().unwrap();
     match req_payload {
         wi_fi_config_payload::Payload::CmdSetConfig(config) => {
-            log::info!(
-                "received wifi-config : {:?}",
-                config.clone(),
-            );
+            let nvs_partition = NvsPartition::new("nvs").unwrap();
+            let mut nvs = Nvs::new(nvs_partition, "wifi_creds").unwrap();
+            
+            nvs.set_bytes("ssid", config.ssid.as_ref()).unwrap();
+            nvs.set_bytes("password", config.passphrase.as_ref()).unwrap();
             
             let wifi_client_config = WifiClientConfig{
                 ssid: String::from_utf8(config.ssid).unwrap(),
@@ -292,13 +295,14 @@ fn handle_cmd_scan_status() -> Vec<u8> {
 fn handle_cmd_scan_result(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
     log::info!("sending scan result");
 
-    let mut wifi_driv = wifi_driv.lock().unwrap();
-
+    
     let mut resp_msg = WiFiScanPayload::default();
     resp_msg.msg = WiFiScanMsgType::TypeRespScanResult.into();
     resp_msg.status = Status::Success.into();
-
+    
+    let mut wifi_driv = wifi_driv.lock().unwrap();
     let wifi_networks = wifi_driv.scan().unwrap();
+    drop(wifi_driv);
     let mut scan_results = Vec::<WiFiScanResult>::new();
 
     for entry in wifi_networks{
