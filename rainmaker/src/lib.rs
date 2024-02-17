@@ -7,7 +7,7 @@ use error::RMakerError;
 use components::{
     http::{HttpConfiguration, HttpServer},
     mqtt::{self, MqttClient, MqttConfiguration, TLSconfiguration},
-    wifi::WifiMgr,
+    wifi::{WifiClientConfig, WifiMgr},
 };
 use serde_json::json;
 use std::sync::{Arc, Mutex};
@@ -80,7 +80,48 @@ impl Rainmaker<'static> {
         simple_logger::SimpleLogger::default().with_level(log::LevelFilter::Info).init().unwrap();
     }
 
-    pub fn init_prov(&mut self, prov_config: WifiProvisioningConfig){
+    pub fn init_wifi(&mut self){
+        let prov_mgr = WifiProvisioningMgr::new(
+            self.http_server.clone(),
+            self.wifi_driv.clone(),
+        );
+
+        
+        let provisioned_status = prov_mgr.get_provisioned_creds();
+        
+        match provisioned_status{
+            Some((ssid, password)) => {
+                log::info!("wifi already provisioned. ssid={}, password={}", ssid, password);
+                log::info!("trying to connect wifi");
+                
+                let wifi_client_config = WifiClientConfig{
+                    ssid,
+                    password, 
+                    ..Default::default()
+                };
+                
+                let mut wifi = self.wifi_driv.lock().unwrap();
+                wifi.set_client_config(wifi_client_config).unwrap();
+                wifi.start().unwrap();
+                wifi.connect().unwrap();
+                drop(wifi)
+            },
+            None => {
+                log::info!("Node not provisioned previously. Starting Wi-Fi Provisioning");
+                self.prov_mgr = Some(prov_mgr);
+                self.start_wifi_provisioning();
+            },
+        }
+    }
+
+    pub fn start_wifi_provisioning(&mut self){
+        let prov_mgr = self.prov_mgr.as_mut().unwrap();
+        prov_mgr.init(WifiProvisioningConfig{
+            device_name: "1234".to_string(),
+            scheme: wifi_prov::WifiProvScheme::SoftAP
+        });
+
+        // while we figure out the issue about static lifetime on esp
         // #[cfg(target_os="linux")]
         let mqtt_client = Some(self.mqtt_client.clone());
 
@@ -89,32 +130,15 @@ impl Rainmaker<'static> {
 
         let node_id = self.node_id.clone();
 
-        let prov_mgr = WifiProvisioningMgr::new(
-            self.http_server.clone(),
-            self.wifi_driv.clone(),
-            prov_config,
-        );
-
-        
         prov_mgr.add_endpoint(
-            "cloud_user_assoc".to_string(),
+            "cloud_user_assoc".to_string(), 
             Box::new(move |req| -> HttpResponse { cloud_user_assoc_callback(req, node_id.to_owned(), mqtt_client.to_owned()) }),
         );
 
-        self.prov_mgr = Some(prov_mgr);
+        prov_mgr.start().unwrap();
+
     }
 
-    pub fn start_prov(&self) {
-        let prov_mgr = self.prov_mgr.as_ref().unwrap();
-        let already_provisioned = prov_mgr.is_provisioned();
-
-        if !already_provisioned{
-            log::info!("Node not provisioned previously. Starting Wi-Fi Provisioning");
-            self.prov_mgr.as_ref().unwrap().start().unwrap();
-        } else {
-            log::info!("Wi-Fi provisioning already done")
-        }
-    }
 }
 
 pub fn cloud_user_assoc_callback<'a>(mut req: HttpRequest, node_id: String, mqtt_client: Option<WrappedInArcMutex<MqttClient<'a>>>) -> HttpResponse {
