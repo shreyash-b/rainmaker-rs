@@ -26,6 +26,10 @@ impl WifiMgr<()> {
         Ok(())
     }
 
+    pub fn assured_connect(&mut self){
+
+    }
+
     pub fn scan(&mut self) -> Result<Vec<WifiApInfo>, Error> {
         Ok(vec![WifiApInfo{
             ssid: "DUMMY_NETWORK_LINUX".to_string(),

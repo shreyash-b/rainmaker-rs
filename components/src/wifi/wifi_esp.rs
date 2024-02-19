@@ -9,11 +9,11 @@ use embedded_svc::{
 };
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
-    hal::prelude::Peripherals,
-    netif::{EspNetif, NetifConfiguration},
+    hal::{delay::Delay, prelude::Peripherals},
+    netif::{EspNetif, NetifConfiguration, NetifStack},
     wifi::{
         AccessPointConfiguration, AuthMethod, BlockingWifi, ClientConfiguration, Configuration,
-        EspWifi,
+        EspWifi, WifiDriver,
     },
 };
 
@@ -117,24 +117,25 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
     pub fn new() -> Result<Self, Error> {
         let sysloop = EspSystemEventLoop::take()?;
 
-        let inner_client = EspWifi::new(Peripherals::take()?.modem, sysloop.clone(), None)?;
+        // netif configuration defaults to 192.168.71.1 however wifi provisioning using softap requires 192.168.4.1
+        // so use custom router configuration
+        let mut netif_router_config = NetifConfiguration::wifi_default_router();
+        netif_router_config.ip_configuration = embedded_svc::ipv4::Configuration::Router(embedded_svc::ipv4::RouterConfiguration {
+            subnet: Subnet{
+                gateway: Ipv4Addr::new(192,168,4,1),
+                mask: Mask(24)
+            },
+            ..Default::default()
+        });
 
-
-        // TODO: by default access point in esp_idf_svc has 192.168.71.1 as the default gateway. However provisioning apps are configured for 192.168.4.1
-        // TODO: so change the default gateway. Following code should ideally work but life is not ideal. Debugging remains to be performed.
-
-        // let mut netif_router_config = NetifConfiguration::wifi_default_router();
-        // netif_router_config.ip_configuration = embedded_svc::ipv4::Configuration::Router(embedded_svc::ipv4::RouterConfiguration {
-        //     subnet: Subnet{
-        //         gateway: Ipv4Addr::new(192,168,4,1),
-        //         mask: Mask(24)
-        //     },
-        //     ..Default::default()
-        // });
-
-        // inner_client.swap_netif(EspNetif::new_with_conf(&NetifConfiguration::wifi_default_client()).unwrap(), EspNetif::new_with_conf(&netif_router_config).unwrap()).unwrap();
+        let inner_client = EspWifi::wrap_all(
+            WifiDriver::new(Peripherals::take()?.modem, sysloop.clone(), None)?, 
+            EspNetif::new(NetifStack::Sta)?, 
+            EspNetif::new_with_conf(&netif_router_config)?
+        )?;
 
         let mut wifi_client = BlockingWifi::wrap(inner_client, sysloop)?;
+
         // configuration defaults to sta + softap, and we don't want that
         wifi_client.set_configuration(&Configuration::None)?;
 
@@ -184,7 +185,7 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
     }
 
     pub fn connect(&mut self) -> Result<(), Error>{
-        let wifi_config = match self.client.get_configuration()? {
+        match self.client.get_configuration()? {
             Configuration::None => {
                 log::error!("cannot connect wifi: no config set");
                 return Ok(())
@@ -195,25 +196,17 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
             }
             config => config,
         };
-
-        let ssid = &wifi_config.as_client_conf_ref().unwrap().ssid;
         
-        match self.client.connect(){
-            Ok(_) => {},
-            Err(e) => {
-                if e.code() == 263 {
-                    log::warn!("timeout while trying to connect wifi... retrying");
-                    self.client.connect().unwrap();
-                }
-            },
-        };
-
-        while !self.client.is_connected()? {
-            log::info!("waiting for ssid={}", ssid);
-            esp_idf_svc::hal::delay::Delay::new_default().delay_ms(100);
-        };
+        self.client.connect()?;
 
         Ok(())
+    }
+
+    pub fn assured_connect(&mut self){
+        while self.connect().is_err(){
+            log::warn!("Unable to connect to wifi. Retrying");
+            Delay::new_default().delay_ms(1000);
+        }
     }
 
     pub fn get_wifi_config(&self) -> (Option<WifiClientConfig>, Option<WifiApConfig>){
