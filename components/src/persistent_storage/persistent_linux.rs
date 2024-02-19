@@ -22,7 +22,7 @@ impl NvsPartition<PathBuf>{
             Err(Error("partition not found".to_string()))?
         }
 
-        Ok(Self(config_dir_pathbuf))
+        Ok(Self(partition_path))
     }
 }
 
