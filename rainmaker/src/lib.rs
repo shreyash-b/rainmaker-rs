@@ -5,19 +5,20 @@ pub mod wifi_prov;
 pub mod node;
 
 use components::{
-    http::{HttpConfiguration, HttpServer},
-    mqtt::{self, MqttClient, MqttConfiguration, TLSconfiguration},
-    wifi::{WifiClientConfig, WifiMgr},
+    http::{HttpConfiguration, HttpServer}, mqtt::{self, MqttClient, MqttConfiguration, TLSconfiguration}, persistent_storage::{Nvs, NvsPartition}, wifi::{WifiClientConfig, WifiMgr}
 };
 use error::RMakerError;
 use serde_json::json;
-use std::{fmt::format, sync::{Arc, Mutex}};
+use std::sync::{Arc, Mutex};
 
 use components::http::{HttpRequest, HttpResponse};
 use prost::Message;
 use wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
 
 pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
+
+#[cfg(target_os="linux")]
+use std::{path::Path, env, fs};
 
 pub struct Rainmaker<'a> {
     node_id: String,
@@ -31,15 +32,20 @@ pub struct Rainmaker<'a> {
 
 impl Rainmaker<'static> {
     pub fn new()  -> Result<Self, RMakerError>{
+        #[cfg(target_os="linux")]
+        Rainmaker::linux_init_claimdata();
         // let event_loop = EspSystemEventLoop::take().unwrap();
         let http_config = HttpConfiguration::default();
         let wifi_driv = WifiMgr::new()?;
         let http_server = HttpServer::new(&http_config).unwrap();
 
-        let node_id = "58CF79DAC1E4".to_string();
-        let mut client_cert = Vec::from(include_bytes!("/home/shreyash/.espressif/rainmaker/claim_data/Google_6hS8QpvnNhmAmd2FKPjoyd/58CF79DAC1E4/node.crt"));
-        let mut private_key = Vec::from(include_bytes!("/home/shreyash/.espressif/rainmaker/claim_data/Google_6hS8QpvnNhmAmd2FKPjoyd/58CF79DAC1E4/node.key"));
-        let mut server_cert = Vec::from(include_bytes!("/home/shreyash/esp/esp-rainmaker/components/esp_rainmaker/server_certs/rmaker_mqtt_server.crt"));
+        let fctry_partition = NvsPartition::new("fctry").unwrap();
+        let fctry_nvs = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
+
+        let node_id = String::from_utf8(fctry_nvs.get_bytes("node_id").unwrap()).unwrap();
+        let mut client_cert = fctry_nvs.get_bytes("client_cert").unwrap();
+        let mut private_key = fctry_nvs.get_bytes("client_key").unwrap();
+        let mut server_cert = Vec::from(include_bytes!("../server_certs/rmaker_mqtt_server.crt"));
 
         client_cert.push(0);
         private_key.push(0);
@@ -77,22 +83,13 @@ impl Rainmaker<'static> {
         })
     }
 
+    pub fn get_node_id_stored(&self) -> String{
+        self.node_id.clone()
+    }
+
     pub fn init(&self) {
         #[cfg(target_os = "espidf")]
         esp_idf_svc::log::EspLogger::initialize_default();
-
-        let mut wifi = self.wifi_driv.lock().unwrap();
-        let wifi_config = WifiClientConfig{
-            ssid: "Connecting....".to_string(),
-            password: "0000@1111".to_string(),
-            ..Default::default()
-        };
-        wifi.set_client_config(wifi_config).unwrap();
-        wifi.start().unwrap();
-        match wifi.connect(){
-            Ok(_) => {},
-            Err(_) => {log::error!("unable to connect wifi!")},
-        };
 
         #[cfg(target_os = "linux")]
         simple_logger::SimpleLogger::default().with_level(log::LevelFilter::Info).init().unwrap();
@@ -106,7 +103,6 @@ impl Rainmaker<'static> {
         match curr_node {
             Some(n) => {
                 let node_config = serde_json::to_string(n).unwrap();
-                log::info!("nodeconfig: {:?}", node_config);
                 mqtt.publish(&node_config_topic, &mqtt::QoSLevel::AtLeastOnce, node_config.into())
             },
             None => panic!("error while starting: node not registered"),
@@ -131,7 +127,6 @@ impl Rainmaker<'static> {
         match provisioned_status{
             Some((ssid, password)) => {
                 log::info!("wifi already provisioned. ssid={}, password={}", ssid, password);
-                log::info!("trying to connect wifi");
                 
                 let wifi_client_config = WifiClientConfig{
                     ssid,
@@ -142,7 +137,7 @@ impl Rainmaker<'static> {
                 let mut wifi = self.wifi_driv.lock().unwrap();
                 wifi.set_client_config(wifi_client_config).unwrap();
                 wifi.start().unwrap();
-                wifi.connect().unwrap();
+                wifi.assured_connect();
                 drop(wifi)
             },
             None => {
@@ -153,7 +148,7 @@ impl Rainmaker<'static> {
         }
     }
 
-    pub fn start_wifi_provisioning(&mut self){
+    fn start_wifi_provisioning(&mut self){
         let prov_mgr = self.prov_mgr.as_mut().unwrap();
         prov_mgr.init(WifiProvisioningConfig{
             device_name: "1234".to_string(),
@@ -178,6 +173,39 @@ impl Rainmaker<'static> {
 
     }
 
+    #[cfg(target_os="linux")]
+    fn linux_init_claimdata(){
+        let fctry_partition = NvsPartition::new("fctry").unwrap();
+        let mut rmaker_namespace = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
+
+        
+        let node_id = rmaker_namespace.get_bytes("node_id");
+        let client_cert = rmaker_namespace.get_bytes("client_cert");
+        let client_key = rmaker_namespace.get_bytes("client_key");
+        
+        if node_id == None || client_cert == None || client_key == None {
+            let claimdata_notfound_error = "Please set RMAKER_CLAIMDATA_LOC env variable pointing to your rainmaker claimdata folder";
+
+            let claimdata_loc = env::var("RMAKER_CLAIMDATA_PATH").expect(claimdata_notfound_error);
+            let claimdata_path = Path::new(claimdata_loc.as_str());
+
+            if !claimdata_path.exists(){
+                panic!("Claimdata folder doesn't exist");
+            }
+
+            let node_id = claimdata_path.join("node.info");
+            let client_cert = claimdata_path.join("node.crt");
+            let client_key = claimdata_path.join("node.key");
+
+            if !node_id.exists() || !client_cert.exists() || !client_key.exists() {
+                panic!("Claimdata folder doesn't contain valid data");
+            }
+
+            rmaker_namespace.set_bytes("node_id", fs::read_to_string(node_id).unwrap().as_bytes()).unwrap();
+            rmaker_namespace.set_bytes("client_cert", fs::read_to_string(client_cert).unwrap().as_bytes()).unwrap();
+            rmaker_namespace.set_bytes("client_key", fs::read_to_string(client_key).unwrap().as_bytes()).unwrap();
+        }
+    }
 }
 
 pub fn cloud_user_assoc_callback<'a>(mut req: HttpRequest, node_id: String, mqtt_client: Option<WrappedInArcMutex<MqttClient<'a>>>) -> HttpResponse {

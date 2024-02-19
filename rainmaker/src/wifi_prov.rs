@@ -28,9 +28,7 @@ pub struct WifiProvisioningConfig {
 pub struct WifiProvisioningMgr<'a> {
     http_server: WrappedInArcMutex<HttpServer<'a>>,
     wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
-    // user_mapping_callback: Box<dyn FnMut(String, String)>,
-    // event_loop: EspSystemEventLoop,
-    _phantom: PhantomData<&'a str>, // for compiler to not complain about lifetime parameter
+    _phantom: PhantomData<&'a ()>, // for compiler to not complain about lifetime parameter
 }
 
 impl<'a> WifiProvisioningMgr<'a> {
@@ -41,8 +39,6 @@ impl<'a> WifiProvisioningMgr<'a> {
         Self {
             http_server,
             wifi_client,
-            // event_loop,
-            // user_mapping_callback,
             _phantom: PhantomData,
         }
     }
@@ -66,7 +62,7 @@ impl<'a> WifiProvisioningMgr<'a> {
     }
 
     pub fn add_endpoint(&self, endpoint: String, callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send>){
-        // todo: look into how idf does it and make it transport independent
+        // todo: look into how idf-c does it and make it transport independent
         let mut http_server = self.http_server.lock().unwrap();
         http_server.add_listener(format!("/{}", endpoint), 
         HttpMethod::POST, callback)
@@ -192,26 +188,23 @@ fn handle_cmd_set_config(req_payload: wi_fi_config_payload::Payload, wifi_driv: 
     let mut wifi_driv = wifi_driv.lock().unwrap();
     match req_payload {
         wi_fi_config_payload::Payload::CmdSetConfig(config) => {
+
+            let wifi_client_config = WifiClientConfig{
+                ssid: String::from_utf8(config.ssid.clone()).unwrap(),
+                password: String::from_utf8(config.passphrase.clone()).unwrap(),
+                bssid: config.bssid,
+                ..Default::default()
+            };
+            wifi_driv.set_client_config(wifi_client_config).unwrap();
+            wifi_driv.connect().unwrap(); // so that esp32 crashes incase wifi creds are wrong. Not the best solution, i know.
+
             let nvs_partition = NvsPartition::new("nvs").unwrap();
             let mut nvs = Nvs::new(nvs_partition, "wifi_creds").unwrap();
             
             nvs.set_bytes("ssid", config.ssid.as_ref()).unwrap();
             nvs.set_bytes("password", config.passphrase.as_ref()).unwrap();
             
-            let wifi_client_config = WifiClientConfig{
-                ssid: String::from_utf8(config.ssid).unwrap(),
-                password: String::from_utf8(config.passphrase).unwrap(),
-                bssid: config.bssid,
-                ..Default::default()
-            };
 
-            wifi_driv.set_client_config(wifi_client_config).unwrap();
-            let conn_result = wifi_driv.connect();
-            match conn_result{
-                Ok(_) => {},
-                Err(_) => {}
-            }
-            
             let mut res_data = WiFiConfigPayload::default();
             res_data.msg = WiFiConfigMsgType::TypeRespSetConfig.into();
             res_data.payload = Some(wi_fi_config_payload::Payload::RespSetConfig(

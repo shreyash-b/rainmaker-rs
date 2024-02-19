@@ -149,11 +149,12 @@ impl Params {
             data_type: data_type.to_owned(),
             properties,
             ui_type: ui_type.to_owned(),
-            bounds: None, // bounds: Some(Bounds{
-                          //     min: Some(0),
-                          //     max: Some(100),
-                          //     step: Some(1)
-                          // },)
+            // bounds: None, 
+            bounds: Some(Bounds{
+                min: Some(0),
+                max: Some(100),
+                step: Some(1)
+            })
         }
     }
 }
