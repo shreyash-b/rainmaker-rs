@@ -47,7 +47,7 @@ pub struct Node {
     config_version: String,
     info: Info,
     attributes: Vec<NodeAttributes>,
-    devices: Vec<Devices>,
+    devices: Vec<Device>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -66,14 +66,14 @@ pub struct NodeAttributes {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Devices {
+pub struct Device {
     name: String,
     #[serde(rename = "type")]
     device_type: DeviceType,
     #[serde(rename = "primary")]
     primary_param: String,
     attributes: Vec<DeviceAttributes>,
-    params: Vec<Params>,
+    params: Vec<Param>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -83,7 +83,7 @@ pub struct DeviceAttributes {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Params {
+pub struct Param {
     name: String,
     data_type: String,
     properties: Vec<String>,
@@ -104,7 +104,7 @@ impl Node {
         config_version: String,
         info: Info,
         attributes: Vec<NodeAttributes>,
-        device: Vec<Devices>,
+        device: Vec<Device>,
     ) -> Node {
         Node {
             node_id,
@@ -115,20 +115,20 @@ impl Node {
         }
     }
 
-    pub fn add_device(&mut self, device: Devices) {
+    pub fn add_device(&mut self, device: Device) {
         self.devices.push(device);
     }
 }
 
-impl Devices {
+impl Device {
     pub fn new(
         name: &str,
         device_type: DeviceType,
         primary_param: &str,
         attributes: Vec<DeviceAttributes>,
-        params: Vec<Params>,
-    ) -> Devices {
-        Devices {
+        params: Vec<Param>,
+    ) -> Device {
+        Device {
             name: name.to_owned(),
             device_type,
             primary_param: primary_param.to_owned(),
@@ -137,14 +137,14 @@ impl Devices {
         }
     }
 
-    pub fn add_param(&mut self, param: Params) {
+    pub fn add_param(&mut self, param: Param) {
         self.params.push(param);
     }
 }
 
-impl Params {
-    pub fn new(name: &str, data_type: &str, properties: Vec<String>, ui_type: &str) -> Params {
-        Params {
+impl Param {
+    pub fn new(name: &str, data_type: &str, properties: Vec<String>, ui_type: &str) -> Param {
+        Param {
             name: name.to_owned(),
             data_type: data_type.to_owned(),
             properties,

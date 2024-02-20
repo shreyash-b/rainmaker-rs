@@ -1,4 +1,4 @@
-use rainmaker::{error::RMakerError, node::{DeviceType, Devices, Info, Node, Params}, Rainmaker};
+use rainmaker::{error::RMakerError, node::{DeviceType, Device, Info, Node, Param}, Rainmaker};
 
 fn main() -> Result<(), RMakerError>{
     std::env::set_var("RUST_BACKTRACE", "1"); // for debugging
@@ -12,9 +12,9 @@ fn main() -> Result<(), RMakerError>{
     //      [RMAKER_CLAIMDATA_PATH={YOUR_CLAIMDATA_PATH} cargo run_linux]
     //      This will fetch the relevant data and store using persistent storage
 
-    let mut led_device = Devices::new("LED", DeviceType::Lightbulb, "Power", vec![], vec![]);
-    let power_param = Params::new("Power", "bool", vec!["read".to_string(), "write".to_string()], "esp.ui.toggle");
-    let brightness_param = Params::new("Brightness", "int", vec!["read".to_string(), "write".to_string()], "esp.ui.slider");
+    let mut led_device = Device::new("LED", DeviceType::Lightbulb, "Power", vec![], vec![]);
+    let power_param = Param::new("Power", "bool", vec!["read".to_string(), "write".to_string()], "esp.ui.toggle");
+    let brightness_param = Param::new("Brightness", "int", vec!["read".to_string(), "write".to_string()], "esp.ui.slider");
     led_device.add_param(power_param);
     led_device.add_param(brightness_param);
     
