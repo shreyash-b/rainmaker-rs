@@ -27,7 +27,13 @@ Devices (devices, Array of objects)
             Step (step, Number)
 */
 
+use std::{collections::HashMap, fmt::Debug};
+
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+type DeviceCbType<'a> = Box<dyn Fn(HashMap<String, Value>) + Send + Sync + 'a>;
+// type DeviceCbType<'a> = Box<dyn Fn(HashMap<String, ParamDataType>) + Send + Sync + 'a>;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum DeviceType {
@@ -42,12 +48,12 @@ pub enum DeviceType {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Node {
+pub struct Node<'a> {
     node_id: String,
     config_version: String,
     info: Info,
     attributes: Vec<NodeAttributes>,
-    devices: Vec<Device>,
+    devices: Vec<Device<'a>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -65,8 +71,8 @@ pub struct NodeAttributes {
     pub value: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Device {
+#[derive(Serialize, Deserialize)]
+pub struct Device<'a> {
     name: String,
     #[serde(rename = "type")]
     device_type: DeviceType,
@@ -74,6 +80,20 @@ pub struct Device {
     primary_param: String,
     attributes: Vec<DeviceAttributes>,
     params: Vec<Param>,
+    #[serde(skip)]
+    callback: Option<DeviceCbType<'a>>
+}
+
+impl Debug for Device<'_>{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Device")
+            .field("name", &self.name)
+            .field("device_type", &self.device_type)
+            .field("primary_param", &self.primary_param)
+            .field("attributes", &self.attributes)
+            .field("params", &self.params)
+            .finish()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -87,74 +107,206 @@ pub struct Param {
     name: String,
     data_type: String,
     properties: Vec<String>,
-    ui_type: String,
+    #[serde(rename="type")]
+    param_type: ParamTypes,
+    ui_type: UiTypes,
+    #[serde(skip_serializing_if = "Option::is_none")]
     bounds: Option<Bounds>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Bounds {
-    min: Option<i32>,
-    max: Option<i32>,
-    step: Option<i32>,
+pub enum ParamTypes{
+    #[serde(rename="esp.param.power")]
+    Power,
+    #[serde(rename="esp.param.brightness")]
+    Brightness,
+    #[serde(rename="esp.param.hue")]
+    Hue,
+    #[serde(rename="esp.param.saturation")]
+    Saturation,
 }
 
-impl Node {
+#[derive(Debug)]
+pub enum ParamDataType{
+    // #[serde(rename="bool")]
+    Boolean(bool),
+    // #[serde(rename="int")]
+    Integer(i64),
+    // #[serde(rename="float")]
+    Float(f64),
+    None
+}
+
+impl From<serde_json::Value> for ParamDataType{
+    fn from(value: serde_json::Value) -> Self {
+        match value {
+            // Value::Null => todo!(),
+            Value::Bool(bool) => Self::Boolean(bool),
+            Value::Number(num) => {
+                if num.is_i64() {
+                    Self::Integer(num.as_i64().unwrap())
+                } else if num.is_f64() {
+                    Self::Float(num.as_f64().unwrap())
+                } else {
+                    Self::None
+                }
+            },
+            // Value::String(_) => todo!(),
+            // Value::Array(_) => todo!(),
+            // Value::Object(_) => todo!(),
+            _ => Self::None
+        }    
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum UiTypes{
+    #[serde(rename="esp.ui.toggle")]
+    Toggle,
+    #[serde(rename="esp.ui.slider")]
+    Slider,
+    #[serde(rename="esp.ui.hue-slider")]
+    HueSlider
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Bounds {
+    min: i32,
+    max: i32,
+    step: i32,
+}
+
+impl<'a> Node<'a> {
     pub fn new(
         node_id: String,
         config_version: String,
         info: Info,
         attributes: Vec<NodeAttributes>,
-        device: Vec<Device>,
-    ) -> Node {
-        Node {
+    ) -> Self {
+        Self {
             node_id,
             config_version,
             info,
             attributes,
-            devices: device,
+            devices: Vec::new(),
         }
     }
 
-    pub fn add_device(&mut self, device: Device) {
+    pub fn add_device(&mut self, device: Device<'a>) {
         self.devices.push(device);
+    }
+
+    pub fn exeute_device_callback(&self, device_name: &str, params: HashMap<String, Value>){
+        for device in self.devices.iter(){
+            // HIGHLY(x2) inefficient (but it works)
+            if device.get_name() == device_name{
+                device.execute_callback(params);
+                break;
+            }
+        }
     }
 }
 
-impl Device {
+impl<'a> Device<'a> {
     pub fn new(
         name: &str,
         device_type: DeviceType,
         primary_param: &str,
         attributes: Vec<DeviceAttributes>,
-        params: Vec<Param>,
-    ) -> Device {
-        Device {
+    ) -> Self {
+        Self {
             name: name.to_owned(),
             device_type,
             primary_param: primary_param.to_owned(),
             attributes,
-            params,
+            params: vec![],
+            callback: None
         }
     }
 
     pub fn add_param(&mut self, param: Param) {
         self.params.push(param);
     }
+
+    pub fn register_callback(&mut self, cb: DeviceCbType<'a>){
+        self.callback = Some(Box::new(cb));
+    }
+
+    pub fn execute_callback(&self, params: HashMap<String, /* ParamDataType */ Value>){
+        let cb: &DeviceCbType;
+        if self.callback.is_some(){
+            cb = self.callback.as_ref().unwrap();
+        } else {
+            return
+        }
+        cb(params);
+    }
+
+    pub fn get_name(&self) -> String{
+        self.name.clone()
+    }
 }
 
 impl Param {
-    pub fn new(name: &str, data_type: &str, properties: Vec<String>, ui_type: &str) -> Param {
+    pub fn new(name: &str, data_type: &str, param_type: ParamTypes, ui_type: UiTypes, properties: Vec<String>) -> Param {
         Param {
             name: name.to_owned(),
             data_type: data_type.to_owned(),
             properties,
-            ui_type: ui_type.to_owned(),
-            // bounds: None, 
-            bounds: Some(Bounds{
-                min: Some(0),
-                max: Some(100),
-                step: Some(1)
-            })
+            param_type,
+            ui_type,
+            bounds: None,
         }
+    }
+
+    pub fn add_bounds(&mut self, min: i32, max: i32, step: i32){
+        self.bounds = Some(Bounds{
+            min,
+            max,
+            step
+        })
+    }
+
+    pub fn new_power(name: &str) -> Self{
+        Self::new(
+            name, 
+            "bool", 
+            ParamTypes::Power,
+            UiTypes::Toggle,
+            vec!["read".to_string(), "write".to_string()]
+        )
+    }
+    
+    pub fn new_brighness(name: &str) -> Self{
+        let mut param = Self::new(
+            name, 
+            "int", 
+            ParamTypes::Brightness,
+            UiTypes::Slider,
+            vec!["read".to_string(), "write".to_string()]
+        );
+        param.add_bounds(0, 100, 1);
+
+        param
+    }
+
+    pub fn new_hue(name: &str) -> Self{
+        let mut param = Self::new(
+            name, 
+            "int", 
+            ParamTypes::Hue,
+            UiTypes::HueSlider,
+            vec!["read".to_string(), "write".to_string()]
+        );
+        param.add_bounds(0, 360, 1);
+
+        param
+    }
+
+    pub fn new_satuation(name: &str) -> Self{
+        let mut param = Self::new_brighness(name); // only one field differ
+        param.param_type = ParamTypes::Saturation;
+
+        param
     }
 }

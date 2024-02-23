@@ -153,8 +153,11 @@ fn prov_session_callback(mut _req: HttpRequest) -> HttpResponse {
 }
 
 fn prov_config_callback(mut req: HttpRequest, wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> HttpResponse {
+    log::info!("prov_config called");
     let req_data = req.data();
     let req_proto = WiFiConfigPayload::decode(&*req_data).unwrap();
+
+    log::info!("prov_config: {:?}", req_proto);
 
     let msg_type = req_proto.msg();
     let res = match msg_type {

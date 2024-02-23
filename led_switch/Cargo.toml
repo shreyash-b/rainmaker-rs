@@ -7,19 +7,21 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["embassy", "esp-idf-svc/native"]
+default = ["esp-idf-svc/native"]
 
-embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-svc/embassy-time-driver"]
+# embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-svc/embassy-time-driver"]
 
 [dependencies]
 rainmaker = { path = "../rainmaker" }
 components = { path = "../components" }
 log = "0.4.20"
-serde = { version = "1.0.196", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [target.'cfg(target_os="espidf")'.dependencies]
 esp-idf-svc = { version = "0.47.3", default-features = false, features = ["binstart"] }
+ws2812-esp32-rmt-driver = "0.7.1"
+smart-leds = "0.4.0"
+smart-leds-trait = "0.2.1"
 
 [build-dependencies]
 embuild = {version = "0.31.4", default-features = false, features = ["espidf"]}

@@ -1,7 +1,7 @@
 use core::fmt;
 
 #[derive(Debug)]
-pub struct RMakerError(String);
+pub struct RMakerError(pub String);
 
 impl fmt::Display for RMakerError{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
