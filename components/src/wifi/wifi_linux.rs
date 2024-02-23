@@ -27,7 +27,11 @@ impl WifiMgr<()> {
     }
 
     pub fn assured_connect(&mut self){
+        self.connect().unwrap()
+    }
 
+    pub fn is_connected(&self) -> bool{
+        true
     }
 
     pub fn scan(&mut self) -> Result<Vec<WifiApInfo>, Error> {

@@ -9,7 +9,7 @@ use embedded_svc::{
 };
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
-    hal::{delay::Delay, prelude::Peripherals},
+    hal::{delay::Delay, modem::Modem},
     netif::{EspNetif, NetifConfiguration, NetifStack},
     wifi::{
         AccessPointConfiguration, AuthMethod, BlockingWifi, ClientConfiguration, Configuration,
@@ -116,6 +116,7 @@ impl From<ClientConfiguration> for WifiClientConfig{
 impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
     pub fn new() -> Result<Self, Error> {
         let sysloop = EspSystemEventLoop::take()?;
+        let modem = unsafe {Modem::new()};
 
         // netif configuration defaults to 192.168.71.1 however wifi provisioning using softap requires 192.168.4.1
         // so use custom router configuration
@@ -129,7 +130,7 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         });
 
         let inner_client = EspWifi::wrap_all(
-            WifiDriver::new(Peripherals::take()?.modem, sysloop.clone(), None)?, 
+            WifiDriver::new(modem, sysloop.clone(), None)?, 
             EspNetif::new(NetifStack::Sta)?, 
             EspNetif::new_with_conf(&netif_router_config)?
         )?;
@@ -207,6 +208,12 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
             log::warn!("Unable to connect to wifi. Retrying");
             Delay::new_default().delay_ms(1000);
         }
+
+        self.client.wait_netif_up().unwrap();
+    }
+
+    pub fn is_connected(&self) -> bool{
+        self.client.is_connected().unwrap()
     }
 
     pub fn get_wifi_config(&self) -> (Option<WifiClientConfig>, Option<WifiApConfig>){
