@@ -30,7 +30,8 @@ pub struct ReceivedMessage {
 pub enum MqttEvent {
     Connected,
     Disconnected,
-    Publish,
+    Published,
+    Subscribed,
     BeforeConnect,
     Received(ReceivedMessage),
     Other,

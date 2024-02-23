@@ -1,6 +1,6 @@
 #![cfg(target_os = "espidf")]
 
-use crate::mqtt::base::*;
+use crate::{error::Error, mqtt::base::*};
 
 impl From<&QoSLevel> for esp_idf_svc::mqtt::client::QoS {
     fn from(value: &QoSLevel) -> Self {
@@ -26,7 +26,8 @@ impl From<&esp_idf_svc::mqtt::client::Event<esp_idf_svc::mqtt::client::EspMqttMe
             }),
             esp_idf_svc::mqtt::client::Event::Disconnected => MqttEvent::Disconnected,
             esp_idf_svc::mqtt::client::Event::BeforeConnect => MqttEvent::BeforeConnect,
-            esp_idf_svc::mqtt::client::Event::Published(_) => MqttEvent::Publish,
+            esp_idf_svc::mqtt::client::Event::Published(_) => MqttEvent::Published,
+            esp_idf_svc::mqtt::client::Event::Subscribed(_) => MqttEvent::Subscribed,
             _ => Self::Other,
         }
     }
@@ -81,9 +82,9 @@ impl<'a> MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'a>> {
             .expect("unable to publish");
     }
 
-    pub fn subscribe(&mut self, topic: &str, qos: &QoSLevel) {
+    pub fn subscribe(&mut self, topic: &str, qos: &QoSLevel) -> Result<(), Error> {
         self.client
-            .subscribe(topic, qos.into())
-            .expect("unable to subscribe");
+            .subscribe(topic, qos.into())?;
+        Ok(())
     }
 }

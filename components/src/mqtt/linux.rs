@@ -1,3 +1,5 @@
+use std::io::Error;
+
 use crate::mqtt::base::*;
 
 impl From<&rumqttc::QoS> for QoSLevel {
@@ -37,15 +39,13 @@ impl From<&rumqttc::Event> for MqttEvent {
                 rumqttc::Packet::Publish(m) => MqttEvent::Received(m.into()),
                 rumqttc::Packet::Disconnect => MqttEvent::Disconnected,
                 rumqttc::Packet::Connect(_) => MqttEvent::BeforeConnect,
-                _ => {
-                    log::warn!("other incoming event: {:?}", e);
-                    MqttEvent::Other
-                }
+                rumqttc::Packet::SubAck(_) => Self::Subscribed,
+                rumqttc::Packet::PubAck(_) => Self::Published,
+                _ => MqttEvent::Other
             },
 
-            rumqttc::Event::Outgoing(e) => {
-                log::info!("other outgoing event: {:?}", e);
-                MqttEvent::Other
+            rumqttc::Event::Outgoing(e) => match e{
+                _ => Self::Other
             }
         }
     }
@@ -72,7 +72,7 @@ impl MqttClient<rumqttc::Client> {
             for (_i, notification) in conn.iter().enumerate() {
                 match notification {
                     Ok(notif) => callback(MqttEvent::from(&notif)),
-                    Err(e) => panic!("error while executing callback: {:?}", e),
+                    Err(e) => log::error!("error while executing callback: {:?}", e),
                 };
             }
         });
@@ -86,9 +86,11 @@ impl MqttClient<rumqttc::Client> {
             .expect("unable to publish");
     }
 
-    pub fn subscribe(&mut self, topic: &str, qos: &QoSLevel) {
+    pub fn subscribe(&mut self, topic: &str, qos: &QoSLevel) -> Result<(), Error> {
         self.client
             .subscribe(topic, qos.into())
             .expect("unable to subscribe");
+
+        Ok(())
     }
 }
