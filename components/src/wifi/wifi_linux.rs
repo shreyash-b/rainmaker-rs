@@ -1,12 +1,12 @@
-use crate::wifi::base::*;
 use crate::error::Error;
+use crate::wifi::base::*;
 
 impl WifiMgr<()> {
     pub fn new() -> Result<Self, Error> {
         Ok(Self { client: () })
     }
 
-    pub fn set_ap_config(&mut self, _config: WifiApConfig) -> Result<(), Error>{
+    pub fn set_ap_config(&mut self, _config: WifiApConfig) -> Result<(), Error> {
         Ok(())
     }
 
@@ -26,16 +26,16 @@ impl WifiMgr<()> {
         Ok(())
     }
 
-    pub fn assured_connect(&mut self){
+    pub fn assured_connect(&mut self) {
         self.connect().unwrap()
     }
 
-    pub fn is_connected(&self) -> bool{
+    pub fn is_connected(&self) -> bool {
         true
     }
 
     pub fn scan(&mut self) -> Result<Vec<WifiApInfo>, Error> {
-        Ok(vec![WifiApInfo{
+        Ok(vec![WifiApInfo {
             ssid: "DUMMY_NETWORK_LINUX".to_string(),
             auth: WifiAuthMode::None,
             ..Default::default()
@@ -43,6 +43,9 @@ impl WifiMgr<()> {
     }
 
     pub fn get_wifi_config(&self) -> (Option<WifiClientConfig>, Option<WifiApConfig>) {
-        (Some(WifiClientConfig::default()), Some(WifiApConfig::default()))
+        (
+            Some(WifiClientConfig::default()),
+            Some(WifiApConfig::default()),
+        )
     }
 }

@@ -1,7 +1,7 @@
 #![cfg(target_os = "espidf")]
 
-use crate::wifi::base::*;
 use crate::error::Error;
+use crate::wifi::base::*;
 
 use embedded_svc::{
     ipv4::{Ipv4Addr, Mask, Subnet},
@@ -74,19 +74,19 @@ impl From<WifiApConfig> for AccessPointConfiguration {
     }
 }
 
-impl From<AccessPointConfiguration> for WifiApConfig{
+impl From<AccessPointConfiguration> for WifiApConfig {
     fn from(value: AccessPointConfiguration) -> Self {
-        Self { 
-            ssid: value.ssid.as_str().into(), 
-            password: value.password.as_str().into(), 
-            auth: value.auth_method.into(), 
+        Self {
+            ssid: value.ssid.as_str().into(),
+            password: value.password.as_str().into(),
+            auth: value.auth_method.into(),
         }
     }
 }
 
 impl From<WifiClientConfig> for ClientConfiguration {
     fn from(value: WifiClientConfig) -> Self {
-        let bssid = match value.bssid.try_into(){
+        let bssid = match value.bssid.try_into() {
             Ok(v) => Some(v),
             Err(_) => None,
         };
@@ -101,14 +101,14 @@ impl From<WifiClientConfig> for ClientConfiguration {
     }
 }
 
-impl From<ClientConfiguration> for WifiClientConfig{
+impl From<ClientConfiguration> for WifiClientConfig {
     fn from(value: ClientConfiguration) -> Self {
-        Self { 
-            ssid: value.ssid.as_str().into(), 
-            bssid: value.bssid.unwrap_or([0; 6]).to_vec(), 
-            auth: value.auth_method.into(), 
-            password: value.password.as_str().into(), 
-            channel: value.channel.unwrap() 
+        Self {
+            ssid: value.ssid.as_str().into(),
+            bssid: value.bssid.unwrap_or([0; 6]).to_vec(),
+            auth: value.auth_method.into(),
+            password: value.password.as_str().into(),
+            channel: value.channel.unwrap(),
         }
     }
 }
@@ -116,23 +116,24 @@ impl From<ClientConfiguration> for WifiClientConfig{
 impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
     pub fn new() -> Result<Self, Error> {
         let sysloop = EspSystemEventLoop::take()?;
-        let modem = unsafe {Modem::new()};
+        let modem = unsafe { Modem::new() };
 
         // netif configuration defaults to 192.168.71.1 however wifi provisioning using softap requires 192.168.4.1
         // so use custom router configuration
         let mut netif_router_config = NetifConfiguration::wifi_default_router();
-        netif_router_config.ip_configuration = embedded_svc::ipv4::Configuration::Router(embedded_svc::ipv4::RouterConfiguration {
-            subnet: Subnet{
-                gateway: Ipv4Addr::new(192,168,4,1),
-                mask: Mask(24)
-            },
-            ..Default::default()
-        });
+        netif_router_config.ip_configuration =
+            embedded_svc::ipv4::Configuration::Router(embedded_svc::ipv4::RouterConfiguration {
+                subnet: Subnet {
+                    gateway: Ipv4Addr::new(192, 168, 4, 1),
+                    mask: Mask(24),
+                },
+                ..Default::default()
+            });
 
         let inner_client = EspWifi::wrap_all(
-            WifiDriver::new(modem, sysloop.clone(), None)?, 
-            EspNetif::new(NetifStack::Sta)?, 
-            EspNetif::new_with_conf(&netif_router_config)?
+            WifiDriver::new(modem, sysloop.clone(), None)?,
+            EspNetif::new(NetifStack::Sta)?,
+            EspNetif::new_with_conf(&netif_router_config)?,
         )?;
 
         let mut wifi_client = BlockingWifi::wrap(inner_client, sysloop)?;
@@ -145,15 +146,11 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         })
     }
 
-    pub fn set_ap_config(&mut self, config: WifiApConfig) -> Result<(), Error>{
+    pub fn set_ap_config(&mut self, config: WifiApConfig) -> Result<(), Error> {
         let apconfig = AccessPointConfiguration::from(config);
         let wifi_config: Configuration;
 
-        wifi_config = match self
-            .client
-            .get_configuration()?
-            .as_client_conf_ref()
-        {
+        wifi_config = match self.client.get_configuration()?.as_client_conf_ref() {
             Some(config) => Configuration::Mixed(config.to_owned(), apconfig),
             None => {
                 // for some reason esp_idf_svc sets 192.168.4.1 as the default gateway
@@ -180,16 +177,16 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         Ok(())
     }
 
-    pub fn start(&mut self) -> Result<(), Error>{
+    pub fn start(&mut self) -> Result<(), Error> {
         self.client.start()?;
         Ok(())
     }
 
-    pub fn connect(&mut self) -> Result<(), Error>{
+    pub fn connect(&mut self) -> Result<(), Error> {
         match self.client.get_configuration()? {
             Configuration::None => {
                 log::error!("cannot connect wifi: no config set");
-                return Ok(())
+                return Ok(());
             }
             Configuration::AccessPoint(_) => {
                 log::error!("cannot connect wifi: wifi in ap mode");
@@ -197,14 +194,14 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
             }
             config => config,
         };
-        
+
         self.client.connect()?;
 
         Ok(())
     }
 
-    pub fn assured_connect(&mut self){
-        while self.connect().is_err(){
+    pub fn assured_connect(&mut self) {
+        while self.connect().is_err() {
             log::warn!("Unable to connect to wifi. Retrying");
             Delay::new_default().delay_ms(1000);
         }
@@ -212,26 +209,27 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         self.client.wait_netif_up().unwrap();
     }
 
-    pub fn is_connected(&self) -> bool{
+    pub fn is_connected(&self) -> bool {
         self.client.is_connected().unwrap()
     }
 
-    pub fn get_wifi_config(&self) -> (Option<WifiClientConfig>, Option<WifiApConfig>){
+    pub fn get_wifi_config(&self) -> (Option<WifiClientConfig>, Option<WifiApConfig>) {
         match self.client.get_configuration().unwrap() {
             Configuration::None => (None, None),
             Configuration::Client(client_config) => (Some(client_config.into()), None),
             Configuration::AccessPoint(ap_config) => (None, Some(ap_config.into())),
-            Configuration::Mixed(client_config, ap_config) => (Some(client_config.into()), Some(ap_config.into())),
+            Configuration::Mixed(client_config, ap_config) => {
+                (Some(client_config.into()), Some(ap_config.into()))
+            }
         }
-
     }
 
-    pub fn disconnect(&mut self) -> Result<(), Error>{
+    pub fn disconnect(&mut self) -> Result<(), Error> {
         self.client.disconnect()?;
         Ok(())
     }
 
-    pub fn stop(&mut self) -> Result<(), Error>{
+    pub fn stop(&mut self) -> Result<(), Error> {
         self.client.stop()?;
         Ok(())
     }

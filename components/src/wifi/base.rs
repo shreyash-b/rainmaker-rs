@@ -24,14 +24,14 @@ pub struct WifiClientConfig {
     pub bssid: Vec<u8>,
     pub auth: WifiAuthMode,
     pub password: String,
-    pub channel: u8
+    pub channel: u8,
 }
 
 #[derive(Debug, Default)]
 pub struct WifiApConfig {
     pub ssid: String,
     pub password: String,
-    pub auth: WifiAuthMode
+    pub auth: WifiAuthMode,
 }
 
 #[derive(Debug, Default)]
@@ -40,5 +40,5 @@ pub struct WifiApInfo {
     pub auth: WifiAuthMode,
     pub bssid: Vec<u8>,
     pub channel: u8,
-    pub signal_strength: i8
+    pub signal_strength: i8,
 }

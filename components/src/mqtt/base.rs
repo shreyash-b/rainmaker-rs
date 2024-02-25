@@ -16,8 +16,8 @@ pub struct MqttConfiguration<'a> {
 
 pub struct TLSconfiguration<'a> {
     pub client_cert: &'a Vec<u8>,
-    pub private_key:&'a Vec<u8>,
-    pub server_cert: &'a Vec<u8>
+    pub private_key: &'a Vec<u8>,
+    pub server_cert: &'a Vec<u8>,
 }
 
 #[derive(Debug)]

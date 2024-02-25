@@ -42,13 +42,13 @@ impl<'a> WifiProvisioningMgr<'a> {
             _phantom: PhantomData,
         }
     }
-    
-    pub fn init(&mut self, config: WifiProvisioningConfig){
+
+    pub fn init(&mut self, config: WifiProvisioningConfig) {
         self.init_ap(config.device_name);
         self.add_listeners();
     }
-    
-    pub fn start(&self) -> Result<(), RMakerError>{
+
+    pub fn start(&self) -> Result<(), RMakerError> {
         let http_server = self.http_server.lock().unwrap();
 
         let mut wifi_driv = self.wifi_client.lock().unwrap();
@@ -61,18 +61,20 @@ impl<'a> WifiProvisioningMgr<'a> {
         Ok(())
     }
 
-    pub fn add_endpoint(&self, endpoint: String, callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send>){
+    pub fn add_endpoint(
+        &self,
+        endpoint: String,
+        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send>,
+    ) {
         // todo: look into how idf-c does it and make it transport independent
         let mut http_server = self.http_server.lock().unwrap();
-        http_server.add_listener(format!("/{}", endpoint), 
-        HttpMethod::POST, callback)
-
+        http_server.add_listener(format!("/{}", endpoint), HttpMethod::POST, callback)
     }
 
     pub fn get_provisioned_creds(&self) -> Option<(String, String)> {
         let nvs = Nvs::new(NvsPartition::new("nvs").unwrap(), "wifi_creds").unwrap();
         let ssid_nvs = nvs.get_bytes("ssid");
-        if ssid_nvs == None{
+        if ssid_nvs == None {
             None
         } else {
             let ssid = String::from_utf8(ssid_nvs.unwrap()).unwrap();
@@ -103,18 +105,21 @@ impl<'a> WifiProvisioningMgr<'a> {
         http_server.add_listener(
             "/prov-config".to_string(),
             HttpMethod::POST,
-            Box::new(move |req| -> HttpResponse { prov_config_callback(req, wifi_driv_prov_config.clone()) }),
+            Box::new(move |req| -> HttpResponse {
+                prov_config_callback(req, wifi_driv_prov_config.clone())
+            }),
         );
 
         http_server.add_listener(
             "/prov-scan".to_string(),
             HttpMethod::POST,
-            Box::new(move |req| -> HttpResponse { prov_scan_callback(req, wifi_driv_prov_scan.clone()) }),
+            Box::new(move |req| -> HttpResponse {
+                prov_scan_callback(req, wifi_driv_prov_scan.clone())
+            }),
         );
-
     }
 
-    fn init_ap(&mut self, device_name: String){
+    fn init_ap(&mut self, device_name: String) {
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         let apconf = WifiApConfig {
             ssid: format!("PROV_{}", device_name),
@@ -137,7 +142,6 @@ fn proto_ver_callback(_req: HttpRequest) -> HttpResponse {
 }
 
 fn prov_session_callback(mut _req: HttpRequest) -> HttpResponse {
-
     let mut res_proto = SessionData::default();
     res_proto.set_sec_ver(SecSchemeVersion::SecScheme0);
     res_proto.proto = Some(session_data::Proto::Sec0(Sec0Payload {
@@ -152,7 +156,10 @@ fn prov_session_callback(mut _req: HttpRequest) -> HttpResponse {
     HttpResponse::from_bytes(res_data)
 }
 
-fn prov_config_callback(mut req: HttpRequest, wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> HttpResponse {
+fn prov_config_callback(
+    mut req: HttpRequest,
+    wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
+) -> HttpResponse {
     log::info!("prov_config called");
     let req_data = req.data();
     let req_proto = WiFiConfigPayload::decode(&*req_data).unwrap();
@@ -162,7 +169,9 @@ fn prov_config_callback(mut req: HttpRequest, wifi_driv: WrappedInArcMutex<WifiM
     let msg_type = req_proto.msg();
     let res = match msg_type {
         WiFiConfigMsgType::TypeCmdGetStatus => handle_cmd_get_status(wifi_driv),
-        WiFiConfigMsgType::TypeCmdSetConfig => handle_cmd_set_config(req_proto.payload.unwrap(), wifi_driv),
+        WiFiConfigMsgType::TypeCmdSetConfig => {
+            handle_cmd_set_config(req_proto.payload.unwrap(), wifi_driv)
+        }
         WiFiConfigMsgType::TypeCmdApplyConfig => handle_cmd_apply_config(),
         _ => unreachable!(),
     };
@@ -187,12 +196,14 @@ fn prov_scan_callback<'a>(
     HttpResponse::from_bytes(&*res)
 }
 
-fn handle_cmd_set_config(req_payload: wi_fi_config_payload::Payload, wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
+fn handle_cmd_set_config(
+    req_payload: wi_fi_config_payload::Payload,
+    wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
+) -> Vec<u8> {
     let mut wifi_driv = wifi_driv.lock().unwrap();
     match req_payload {
         wi_fi_config_payload::Payload::CmdSetConfig(config) => {
-
-            let wifi_client_config = WifiClientConfig{
+            let wifi_client_config = WifiClientConfig {
                 ssid: String::from_utf8(config.ssid.clone()).unwrap(),
                 password: String::from_utf8(config.passphrase.clone()).unwrap(),
                 bssid: config.bssid,
@@ -203,10 +214,10 @@ fn handle_cmd_set_config(req_payload: wi_fi_config_payload::Payload, wifi_driv: 
 
             let nvs_partition = NvsPartition::new("nvs").unwrap();
             let mut nvs = Nvs::new(nvs_partition, "wifi_creds").unwrap();
-            
+
             nvs.set_bytes("ssid", config.ssid.as_ref()).unwrap();
-            nvs.set_bytes("password", config.passphrase.as_ref()).unwrap();
-            
+            nvs.set_bytes("password", config.passphrase.as_ref())
+                .unwrap();
 
             let mut res_data = WiFiConfigPayload::default();
             res_data.msg = WiFiConfigMsgType::TypeRespSetConfig.into();
@@ -291,18 +302,17 @@ fn handle_cmd_scan_status() -> Vec<u8> {
 fn handle_cmd_scan_result(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
     log::info!("sending scan result");
 
-    
     let mut resp_msg = WiFiScanPayload::default();
     resp_msg.msg = WiFiScanMsgType::TypeRespScanResult.into();
     resp_msg.status = Status::Success.into();
-    
+
     let mut wifi_driv = wifi_driv.lock().unwrap();
     let wifi_networks = wifi_driv.scan().unwrap();
     drop(wifi_driv);
     let mut scan_results = Vec::<WiFiScanResult>::new();
 
-    for entry in wifi_networks{
-        scan_results.push(WiFiScanResult{
+    for entry in wifi_networks {
+        scan_results.push(WiFiScanResult {
             ssid: entry.ssid.as_bytes().to_vec(),
             auth: components::protocomm::WifiAuthMode::from(entry.auth).into(),
             bssid: entry.bssid,

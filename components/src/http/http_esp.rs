@@ -1,4 +1,4 @@
-#![cfg(target_os="espidf")]
+#![cfg(target_os = "espidf")]
 
 use embedded_svc::{http::Headers, io::Read};
 use esp_idf_svc::{
@@ -19,14 +19,13 @@ impl From<esp_idf_svc::http::Method> for HttpMethod {
     }
 }
 
-impl Into<esp_idf_svc::http::Method> for HttpMethod{
+impl Into<esp_idf_svc::http::Method> for HttpMethod {
     fn into(self) -> esp_idf_svc::http::Method {
         use esp_idf_svc::http::Method;
-        match self{
+        match self {
             Self::GET => Method::Get,
-            Self::POST => Method::Post, 
+            Self::POST => Method::Post,
         }
-
     }
 }
 // from esp_idf_http_request to custom_request
@@ -34,7 +33,7 @@ impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
     fn from(req: &mut Request<&mut EspHttpConnection>) -> Self {
         let buf_len = match req.content_len() {
             Some(l) => l as usize,
-            None => 0
+            None => 0,
         };
         let mut buf = vec![0; buf_len];
         req.read_exact(&mut buf).unwrap();
@@ -43,7 +42,6 @@ impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
             method: req.method().into(),
             url: req.uri().to_owned(),
             data: buf,
-
         }
     }
 }

@@ -41,12 +41,12 @@ impl From<&rumqttc::Event> for MqttEvent {
                 rumqttc::Packet::Connect(_) => MqttEvent::BeforeConnect,
                 rumqttc::Packet::SubAck(_) => Self::Subscribed,
                 rumqttc::Packet::PubAck(_) => Self::Published,
-                _ => MqttEvent::Other
+                _ => MqttEvent::Other,
             },
 
-            rumqttc::Event::Outgoing(e) => match e{
-                _ => Self::Other
-            }
+            rumqttc::Event::Outgoing(e) => match e {
+                _ => Self::Other,
+            },
         }
     }
 }
@@ -59,12 +59,15 @@ impl MqttClient<rumqttc::Client> {
     ) -> anyhow::Result<Self> {
         let mut option = rumqttc::MqttOptions::new(&*config.clientid, &*config.host, config.port);
         option.transport();
-        
+
         option.set_keep_alive(std::time::Duration::from_secs(60));
 
         option.set_transport(rumqttc::Transport::tls(
             tlscerts.server_cert.to_vec(),
-            Some((tlscerts.client_cert.to_vec(), rumqttc::Key::RSA(tlscerts.private_key.to_vec()))),
+            Some((
+                tlscerts.client_cert.to_vec(),
+                rumqttc::Key::RSA(tlscerts.private_key.to_vec()),
+            )),
             None,
         ));
         let (client, mut conn) = rumqttc::Client::new(option, 5);

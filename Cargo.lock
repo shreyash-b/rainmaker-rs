@@ -985,7 +985,6 @@ dependencies = [
  "smart-leds",
  "smart-leds-trait 0.2.1",
  "ws2812-esp32-rmt-driver",
- "ws2812-spi",
 ]
 
 [[package]]
@@ -2234,15 +2233,4 @@ dependencies = [
  "esp-idf-sys",
  "smart-leds-trait 0.2.1",
  "thiserror",
-]
-
-[[package]]
-name = "ws2812-spi"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eaa00b1cde2c2c861e7cc13a4925598dd86b4690e39c5b77308198df5384b8db"
-dependencies = [
- "embedded-hal 0.2.7",
- "nb 0.1.3",
- "smart-leds-trait 0.2.1",
 ]

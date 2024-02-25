@@ -39,11 +39,10 @@ impl<'a> MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'a>> {
         tls_certs: &'static TLSconfiguration,
         callback: Box<dyn Fn(MqttEvent) + Send + Sync>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-
         let client_cert = std::ffi::CStr::from_bytes_with_nul(&tls_certs.client_cert).unwrap();
         let private_key = std::ffi::CStr::from_bytes_with_nul(&tls_certs.private_key).unwrap();
-        let server_cert = std::ffi::CStr::from_bytes_with_nul(&tls_certs.server_cert).unwrap(); 
-       
+        let server_cert = std::ffi::CStr::from_bytes_with_nul(&tls_certs.server_cert).unwrap();
+
         let mut options = esp_idf_svc::mqtt::client::MqttClientConfiguration::default();
 
         options.client_id = Some(config.clientid);
@@ -83,8 +82,7 @@ impl<'a> MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'a>> {
     }
 
     pub fn subscribe(&mut self, topic: &str, qos: &QoSLevel) -> Result<(), Error> {
-        self.client
-            .subscribe(topic, qos.into())?;
+        self.client.subscribe(topic, qos.into())?;
         Ok(())
     }
 }

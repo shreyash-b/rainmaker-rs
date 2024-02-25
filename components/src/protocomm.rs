@@ -1,9 +1,9 @@
 pub use prost::Message;
 include!(concat!(env!("OUT_DIR"), "/session.rs"));
 
-impl From<crate::wifi::WifiAuthMode> for WifiAuthMode{
+impl From<crate::wifi::WifiAuthMode> for WifiAuthMode {
     fn from(value: crate::wifi::WifiAuthMode) -> Self {
-        match value{
+        match value {
             crate::wifi::WifiAuthMode::None => Self::Open,
             crate::wifi::WifiAuthMode::WEP => Self::Wep,
             crate::wifi::WifiAuthMode::WPA => Self::WpaPsk,
