@@ -44,7 +44,7 @@ impl<'a> HttpServer<tiny_http::Server> {
         &mut self,
         path: String,
         method: HttpMethod,
-        callback: Box<dyn Fn(HttpRequest) -> HttpResponse>,
+        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync>,
     ) {
         // if inner hashmap does not exist for a path, create it
         let paths_hmap = self.listeners.as_mut().unwrap();

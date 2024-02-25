@@ -72,5 +72,5 @@ pub struct HttpServer<T> {
     pub(crate) server: T,
     #[allow(dead_code)]
     pub(crate) listeners:
-        Option<HashMap<String, HashMap<HttpMethod, Box<dyn Fn(HttpRequest) -> HttpResponse>>>>,
+        Option<HashMap<String, HashMap<HttpMethod, Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync>>>>,
 }

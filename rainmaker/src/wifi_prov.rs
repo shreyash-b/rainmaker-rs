@@ -64,7 +64,7 @@ impl<'a> WifiProvisioningMgr<'a> {
     pub fn add_endpoint(
         &self,
         endpoint: String,
-        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send>,
+        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync>,
     ) {
         // todo: look into how idf-c does it and make it transport independent
         let mut http_server = self.http_server.lock().unwrap();

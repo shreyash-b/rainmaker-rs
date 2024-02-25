@@ -15,7 +15,7 @@ use node::Node;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, thread, time::Duration,
 };
 
 use components::http::{HttpRequest, HttpResponse};
@@ -35,6 +35,10 @@ pub struct Rainmaker<'a> {
     // remove this later when mqtt client passing works for user_cloud_mapping on esp
     mqtt_client: Option<WrappedInArcMutex<MqttClient<'a>>>,
     node: Option<Arc<node::Node<'a>>>,
+}
+
+unsafe impl Send for Rainmaker<'_>{
+
 }
 
 impl<'a> Rainmaker<'a>
@@ -110,6 +114,7 @@ where
                 // }
 
                 // temporary workaround
+                thread::sleep(Duration::from_secs(1)); // wait for connection
                 if mqtt
                     .subscribe(&remote_param_topic, &mqtt::QoSLevel::AtLeastOnce)
                     .is_err()
@@ -128,6 +133,7 @@ where
     }
 
     pub fn report_params(&self, device_name: &str, params: HashMap<String, Value>) {
+        log::info!("Rainmaker: reporting params");
         let updated_params = json!({
             device_name: params
         });

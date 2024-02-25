@@ -14,7 +14,6 @@ use esp_idf_svc::hal::{
 use ws2812_esp32_rmt_driver::Ws2812Esp32Rmt;
 
 use std::collections::HashMap;
-#[cfg(target_os = "espidf")]
 use std::sync::Mutex;
 
 use rainmaker::{
@@ -24,14 +23,14 @@ use rainmaker::{
 };
 use serde_json::Value;
 
-fn led_cb(params: HashMap<String, /* ParamDataType */ Value>, driver: &LedDriverType) {
+fn led_cb(params: HashMap<String, /* ParamDataType */ Value>, driver: &LedDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
     log::info!("led: {:?}", params);
-    device_led::handle_led_update(params, driver)
+    device_led::handle_led_update(params, driver, rmaker)
 }
 
-fn light_cb(params: HashMap<String, /* ParamDataType */ Value>, driver: &LightDriverType) {
+fn light_cb(params: HashMap<String, /* ParamDataType */ Value>, driver: &LightDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
     log::info!("light: {:?}", params);
-    device_light::handle_light_update(params, driver);
+    device_light::handle_light_update(params, driver, rmaker);
 }
 
 fn main() -> Result<(), RMakerError> {
@@ -49,43 +48,48 @@ fn main() -> Result<(), RMakerError> {
     #[cfg(target_os = "espidf")]
     let peripherals = Peripherals::take().unwrap();
 
-    #[cfg(target_os = "espidf")]
-    let led_driver = LedcDriver::new(
-        peripherals.ledc.channel0,
-        LedcTimerDriver::new(
-            peripherals.ledc.timer0,
-            &ledc::config::TimerConfig::default(),
+    let led_driver: &device_led::LedDriverType;
+    let light_driver: &device_light::LightDriverType;
+
+    #[cfg(target_os="espidf")]
+    {
+        let led_driver_local = LedcDriver::new(
+            peripherals.ledc.channel0,
+            LedcTimerDriver::new(
+                peripherals.ledc.timer0,
+                &ledc::config::TimerConfig::default(),
+            )
+            .unwrap(),
+            peripherals.pins.gpio10,
         )
-        .unwrap(),
-        peripherals.pins.gpio2,
-    )
-    .unwrap();
+        .unwrap();
+    
+        let light_driver_local = Ws2812Esp32Rmt::new(
+            peripherals.rmt.channel0,
+            peripherals.pins.gpio8)
+            .unwrap();
 
-    #[cfg(target_os = "espidf")]
-    let led_driver = Box::leak(Box::new(Mutex::new(led_driver)));
-
-    #[cfg(target_os = "linux")]
-    let led_driver = Box::leak(Box::new(()));
-
-    #[cfg(target_os = "espidf")]
-    let light_driver =
-        Ws2812Esp32Rmt::new(peripherals.rmt.channel0, peripherals.pins.gpio8).unwrap();
-
-    #[cfg(target_os = "espidf")]
-    let light_driver = Box::leak(Box::new(Mutex::new(light_driver)));
+        led_driver = Box::leak(Box::new(Mutex::new(led_driver_local)));
+        light_driver = Box::leak(Box::new(Mutex::new(light_driver_local)));
+    }
 
     #[cfg(target_os = "linux")]
-    let light_driver = Box::leak(Box::new(()));
+    {
+        led_driver = Box::leak(Box::new(()));
+        light_driver = Box::leak(Box::new(()));
+    }
 
     let mut light_device = create_light_device("Light");
+    
+    let rmaker_mutex = Box::leak(Box::new(Mutex::new(Rainmaker::new()?))); // needed just to keep compiler happy
+    let mut rmaker = rmaker_mutex.lock().unwrap();
+    
+    light_device.register_callback(Box::new(|params| light_cb(params, light_driver, rmaker_mutex)));
 
-    light_device.register_callback(Box::new(|params| light_cb(params, light_driver)));
-
-    let mut rmaker: Rainmaker<'_> = Rainmaker::new()?;
     rmaker.init();
 
     let mut led_device = create_led_device("LED");
-    led_device.register_callback(Box::new(|params| led_cb(params, led_driver)));
+    led_device.register_callback(Box::new(|params| led_cb(params, led_driver, rmaker_mutex)));
 
     let mut node = Node::new(
         rmaker.get_node_id(),
@@ -98,6 +102,7 @@ fn main() -> Result<(), RMakerError> {
     rmaker.register_node(node);
     rmaker.init_wifi()?;
     rmaker.start()?;
+    drop(rmaker); // drop the lock so that callbacks can use it
     rainmaker::prevent_drop();
 
     Ok(())

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use rainmaker::node::*;
+use rainmaker::Rainmaker;
 use serde_json::Value;
 #[cfg(target_os = "espidf")]
 use smart_leds::{
     hsv::{hsv2rgb, Hsv},
     RGB8,
 };
-#[cfg(target_os = "espidf")]
 use std::sync::Mutex;
 
 #[cfg(target_os = "espidf")]
@@ -33,7 +33,7 @@ pub type LightDriverType<'a> = Mutex<LedPixelEsp32Rmt<'a, RGB8, LedPixelColorGrb
 pub type LightDriverType = ();
 
 #[cfg(target_os = "espidf")]
-pub fn handle_light_update(params: HashMap<String, Value>, driver: &LightDriverType) {
+pub fn handle_light_update(params: HashMap<String, Value>, driver: &LightDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
     if params.contains_key("Power")
         || params.contains_key("Hue")
         || params.contains_key("Saturation")
@@ -89,11 +89,15 @@ pub fn handle_light_update(params: HashMap<String, Value>, driver: &LightDriverT
             let light = std::iter::repeat(hsv2rgb(curr_data.1)).take(1);
             driver.write(light).unwrap();
         }
+
+        report_params(params, rmaker);
     }
 }
 
 #[cfg(target_os = "linux")]
-pub fn handle_light_update(_params: HashMap<String, Value>, _driver: &LightDriverType) {}
+pub fn handle_light_update(_params: HashMap<String, Value>, _driver: &LightDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
+    report_params(_params, rmaker);
+}
 
 pub fn create_light_device(name: &str) -> Device {
     let mut light_device = Device::new(name, DeviceType::Lightbulb, "Power", vec![]);
@@ -108,4 +112,11 @@ pub fn create_light_device(name: &str) -> Device {
     light_device.add_param(brightness_param);
 
     light_device
+}
+
+fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'static>>){
+    let rmaker_lock = rmaker.lock().unwrap();
+    rmaker_lock.report_params("Light", params);
+    drop(rmaker_lock);
+
 }
