@@ -112,6 +112,7 @@ pub struct Param {
     ui_type: UiTypes,
     #[serde(skip_serializing_if = "Option::is_none")]
     bounds: Option<Bounds>,
+    initial_state: Value
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -205,6 +206,20 @@ impl<'a> Node<'a> {
             }
         }
     }
+
+    pub fn get_init_params_string(&self) -> HashMap<&str, HashMap<&str, &Value>>{
+        let mut device_params = HashMap::<&str, HashMap<&str, &Value>>::new();
+        for device in &self.devices{
+            let device_initial_params = device.get_initial_params();
+            device_params.insert(&device.name, device_initial_params);
+        };
+
+        // let params_init = serde_json::to_value(device_params).unwrap();
+
+        // params_init.to_string()
+        device_params
+
+    }
 }
 
 impl<'a> Device<'a> {
@@ -245,12 +260,24 @@ impl<'a> Device<'a> {
     pub fn get_name(&self) -> String {
         self.name.clone()
     }
+
+    // pub fn get_initial_params(&self) -> String{
+    pub fn get_initial_params(&self) -> HashMap<&str, &Value>{
+        let mut params_value = HashMap::<&str, &Value>::new();
+        for param in &self.params{
+            params_value.insert(&param.name, &param.initial_state);
+        }
+
+        // serde_json::to_value(params_value).unwrap().to_string()
+        params_value
+    }
 }
 
 impl Param {
     pub fn new(
         name: &str,
         data_type: &str,
+        initial_state: Value,
         param_type: ParamTypes,
         ui_type: UiTypes,
         properties: Vec<String>,
@@ -262,6 +289,7 @@ impl Param {
             param_type,
             ui_type,
             bounds: None,
+            initial_state
         }
     }
 
@@ -269,20 +297,22 @@ impl Param {
         self.bounds = Some(Bounds { min, max, step })
     }
 
-    pub fn new_power(name: &str) -> Self {
+    pub fn new_power(name: &str, initial_state: bool) -> Self {
         Self::new(
             name,
             "bool",
+            Value::Bool(initial_state),
             ParamTypes::Power,
             UiTypes::Toggle,
             vec!["read".to_string(), "write".to_string()],
         )
     }
 
-    pub fn new_brighness(name: &str) -> Self {
+    pub fn new_brighness(name: &str, initial_state: u32) -> Self {
         let mut param = Self::new(
             name,
             "int",
+            Value::Number(initial_state.into()),
             ParamTypes::Brightness,
             UiTypes::Slider,
             vec!["read".to_string(), "write".to_string()],
@@ -292,10 +322,11 @@ impl Param {
         param
     }
 
-    pub fn new_hue(name: &str) -> Self {
+    pub fn new_hue(name: &str, initial_state: u32) -> Self {
         let mut param = Self::new(
             name,
             "int",
+            Value::Number(initial_state.into()),
             ParamTypes::Hue,
             UiTypes::HueSlider,
             vec!["read".to_string(), "write".to_string()],
@@ -305,9 +336,17 @@ impl Param {
         param
     }
 
-    pub fn new_satuation(name: &str) -> Self {
-        let mut param = Self::new_brighness(name); // only one field differ
-        param.param_type = ParamTypes::Saturation;
+    pub fn new_satuation(name: &str, initial_state: u32) -> Self {
+        let mut param = Self::new(
+            name, 
+            "int",
+            initial_state.into(),
+            ParamTypes::Saturation,
+            UiTypes::Slider, 
+            vec!["read".to_string(), "write".to_string()]
+        );
+
+        param.add_bounds(0, 100, 1);
 
         param
     }

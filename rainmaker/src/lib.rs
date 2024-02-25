@@ -96,16 +96,27 @@ where
                 ))
             }
         };
-        let node_config_topic = format!("node/{}/config", self.node_id.clone());
-        let remote_param_topic = format!("node/{}/params/remote", self.node_id.clone());
+        let node_id = self.node_id.clone();
+        let node_config_topic = format!("node/{}/config", node_id);
+        let params_local_init_topic = format!("node/{}/params/local/init", node_id);
+        let remote_param_topic = format!("node/{}/params/remote", node_id);
 
         match curr_node {
-            Some(n) => {
-                let node_config = serde_json::to_string(n.as_ref()).unwrap();
+            Some(node) => {
+                let node_config = serde_json::to_string(node.as_ref()).unwrap();
                 mqtt.publish(
                     &node_config_topic,
                     &mqtt::QoSLevel::AtLeastOnce,
                     node_config.into(),
+                );
+
+                let init_params = node.get_init_params_string();
+                let init_params = serde_json::to_string(&init_params).unwrap();
+                log::info!("publishing initial params: {}", init_params);
+                mqtt.publish(
+                    &params_local_init_topic, 
+                    &mqtt::QoSLevel::AtLeastOnce,
+                    init_params.into()
                 );
 
                 // while mqtt.subscribe(remote_param_topic.as_str(), &mqtt::QoSLevel::AtLeastOnce).is_err() {

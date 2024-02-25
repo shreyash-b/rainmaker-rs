@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use esp_idf_svc::hal::ledc::LedcDriver;
 use std::sync::Mutex;
 
-#[cfg(target_os = "espidf")]
 static LED_DATA: Mutex<(bool, u32)> = Mutex::new((false, 0)); // power, brightness
 
 #[cfg(target_os = "espidf")]
@@ -56,8 +55,9 @@ pub fn handle_led_update(_params: HashMap<String, Value>, _driver: &LedDriverTyp
 
 pub fn create_led_device(name: &str) -> Device {
     let mut led_device = Device::new(name, DeviceType::Light, "Power", vec![]);
-    let power_param = Param::new_power("Power");
-    let brightness_param = Param::new_brighness("Brightness");
+    let device_params = LED_DATA.lock().unwrap();
+    let power_param = Param::new_power("Power", device_params.0);
+    let brightness_param = Param::new_brighness("Brightness", device_params.1);
 
     led_device.add_param(power_param);
     led_device.add_param(brightness_param);
