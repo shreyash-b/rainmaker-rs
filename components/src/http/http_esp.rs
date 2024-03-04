@@ -46,7 +46,7 @@ impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
     }
 }
 
-impl<'a> HttpServer<esp_idf_svc::http::server::EspHttpServer<'a>> {
+impl<'a> HttpServer<'a, esp_idf_svc::http::server::EspHttpServer<'a>> {
     pub fn new(config: &HttpConfiguration) -> anyhow::Result<Self> {
         let mut http_config = esp_idf_svc::http::server::Configuration::default();
         http_config.http_port = config.port;

@@ -32,7 +32,7 @@ impl From<&mut tiny_http::Request> for HttpRequest {
     }
 }
 
-impl<'a> HttpServer<tiny_http::Server> {
+impl<'a> HttpServer<'a, tiny_http::Server> {
     pub fn new(config: &HttpConfiguration) -> anyhow::Result<Self> {
         Ok(HttpServer {
             server: tiny_http::Server::http(SocketAddr::new(config.addr, config.port)).unwrap(),
@@ -44,7 +44,7 @@ impl<'a> HttpServer<tiny_http::Server> {
         &mut self,
         path: String,
         method: HttpMethod,
-        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync>,
+        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync + 'a>,
     ) {
         // if inner hashmap does not exist for a path, create it
         let paths_hmap = self.listeners.as_mut().unwrap();
