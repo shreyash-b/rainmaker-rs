@@ -5,7 +5,6 @@ pub mod node;
 pub mod wifi_prov;
 
 use components::{
-    http::{HttpConfiguration, HttpServer},
     mqtt::{self, MqttClient, MqttConfiguration, MqttEvent, TLSconfiguration},
     persistent_storage::{Nvs, NvsPartition},
     wifi::{WifiClientConfig, WifiMgr},
@@ -15,10 +14,11 @@ use node::Node;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex}, thread, time::Duration,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
 };
 
-use components::http::{HttpRequest, HttpResponse};
 use prost::Message;
 use wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
 
@@ -28,7 +28,6 @@ pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
 use std::{env, fs, path::Path};
 pub struct Rainmaker<'a> {
     node_id: String,
-    http_server: WrappedInArcMutex<HttpServer<'a>>,
     wifi_driv: WrappedInArcMutex<WifiMgr<'a>>,
     prov_mgr: Option<wifi_prov::WifiProvisioningMgr<'a>>,
     #[allow(dead_code)]
@@ -37,9 +36,7 @@ pub struct Rainmaker<'a> {
     node: Option<Arc<node::Node<'a>>>,
 }
 
-unsafe impl Send for Rainmaker<'_>{
-
-}
+unsafe impl Send for Rainmaker<'_> {}
 
 impl<'a> Rainmaker<'a>
 where
@@ -49,9 +46,7 @@ where
         #[cfg(target_os = "linux")]
         Rainmaker::linux_init_claimdata();
 
-        let http_config = HttpConfiguration::default();
         let wifi_driv = WifiMgr::new()?;
-        let http_server = HttpServer::new(&http_config).unwrap();
 
         let fctry_partition = NvsPartition::new("fctry").unwrap();
         let fctry_nvs = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
@@ -60,7 +55,6 @@ where
 
         Ok(Self {
             node_id,
-            http_server: Arc::new(Mutex::new(http_server)),
             wifi_driv: Arc::new(Mutex::new(wifi_driv)),
             prov_mgr: None,
             // mqtt_client: Arc::new(Mutex::new(mqtt_client)),
@@ -114,9 +108,9 @@ where
                 let init_params = serde_json::to_string(&init_params).unwrap();
                 log::info!("publishing initial params: {}", init_params);
                 mqtt.publish(
-                    &params_local_init_topic, 
+                    &params_local_init_topic,
                     &mqtt::QoSLevel::AtLeastOnce,
-                    init_params.into()
+                    init_params.into(),
                 );
 
                 // while mqtt.subscribe(remote_param_topic.as_str(), &mqtt::QoSLevel::AtLeastOnce).is_err() {
@@ -166,7 +160,7 @@ where
     }
 
     pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
-        let prov_mgr = WifiProvisioningMgr::new(self.http_server.clone(), self.wifi_driv.clone());
+        let prov_mgr = WifiProvisioningMgr::new(None, self.wifi_driv.clone());
 
         let provisioned_status = prov_mgr.get_provisioned_creds();
 
@@ -253,7 +247,7 @@ where
     }
 
     fn start_wifi_provisioning(&mut self) -> Result<(), RMakerError> {
-        let prov_mgr = self.prov_mgr.as_mut().unwrap();
+        let prov_mgr = self.prov_mgr.as_ref().unwrap();
         prov_mgr.init(WifiProvisioningConfig {
             device_name: "ABC12".to_string(),
             scheme: wifi_prov::WifiProvScheme::SoftAP,
@@ -275,12 +269,9 @@ where
 
         let node_id = self.node_id.clone();
 
-        prov_mgr.add_endpoint(
-            "cloud_user_assoc".to_string(),
-            Box::new(move |req| -> HttpResponse {
-                cloud_user_assoc_callback(req, node_id.to_owned(), mqtt_client.to_owned())
-            }),
-        );
+        prov_mgr.add_endpoint("cloud_user_assoc", move |ep_name, data| -> Vec<u8> {
+            cloud_user_assoc_callback(ep_name, data, node_id.to_owned(), mqtt_client.to_owned())
+        });
 
         prov_mgr.start().unwrap();
         Ok(())
@@ -351,12 +342,12 @@ fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
 }
 
 pub fn cloud_user_assoc_callback<'a>(
-    mut req: HttpRequest,
+    _ep: String,
+    data: Vec<u8>,
     node_id: String,
     mqtt_client: Option<WrappedInArcMutex<MqttClient<'a>>>,
-) -> HttpResponse {
-    let req_data = req.data();
-    let req_proto = RMakerConfigPayload::decode(&*req_data).unwrap();
+) -> Vec<u8> {
+    let req_proto = RMakerConfigPayload::decode(&*data).unwrap();
     let req_payload = req_proto.payload.unwrap();
 
     let (user_id, secret_key) = match req_payload {
@@ -397,7 +388,7 @@ pub fn cloud_user_assoc_callback<'a>(
     ));
 
     let res = res_proto.encode_to_vec();
-    HttpResponse::from_bytes(&*res)
+    res
 }
 
 pub fn prevent_drop() {

@@ -1,13 +1,13 @@
+use serde_json::json;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use components::http::*;
 use components::persistent_storage::Nvs;
 use components::persistent_storage::NvsPartition;
+use components::protocomm::transports::httpd::TransportHttpd;
 use components::protocomm::*;
 use components::wifi::*;
-use serde_json::json;
 
 use crate::error::RMakerError;
 
@@ -26,49 +26,57 @@ pub struct WifiProvisioningConfig {
 }
 
 pub struct WifiProvisioningMgr<'a> {
-    http_server: WrappedInArcMutex<HttpServer<'a>>,
+    protocomm: WrappedInArcMutex<Protocomm<'a>>,
     wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
     _phantom: PhantomData<&'a ()>, // for compiler to not complain about lifetime parameter
 }
 
 impl<'a> WifiProvisioningMgr<'a> {
     pub fn new(
-        http_server: WrappedInArcMutex<HttpServer<'a>>,
+        protocomm: Option<WrappedInArcMutex<Protocomm<'a>>>,
         wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
     ) -> Self {
+        let protocomm_new: WrappedInArcMutex<Protocomm>;
+        if protocomm.is_none() {
+            protocomm_new = Arc::new(Mutex::new(Protocomm::new(
+                ProtocomTransport::Httpd(TransportHttpd::new()),
+                ProtocommSecurity::Sec0,
+            )));
+        } else {
+            protocomm_new = protocomm.unwrap();
+        }
         Self {
-            http_server,
+            protocomm: protocomm_new,
             wifi_client,
             _phantom: PhantomData,
         }
     }
 
-    pub fn init(&mut self, config: WifiProvisioningConfig) {
+    pub fn init(&self, config: WifiProvisioningConfig) {
         self.init_ap(config.device_name);
-        self.add_listeners();
+        self.register_listeners();
     }
 
     pub fn start(&self) -> Result<(), RMakerError> {
-        let http_server = self.http_server.lock().unwrap();
-
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         wifi_driv.set_client_config(WifiClientConfig::default())?;
         wifi_driv.start()?;
         drop(wifi_driv);
 
-        http_server.listen();
+        let pc = self.protocomm.lock().unwrap();
+        pc.start();
 
         Ok(())
     }
 
-    pub fn add_endpoint(
-        &self,
-        endpoint: String,
-        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync>,
-    ) {
+    pub fn add_endpoint<T>(&self, endpoint: &str, callback: T)
+    where
+        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'a,
+    {
         // todo: look into how idf-c does it and make it transport independent
-        let mut http_server = self.http_server.lock().unwrap();
-        http_server.add_listener(format!("/{}", endpoint), HttpMethod::POST, callback)
+        let pc = self.protocomm.lock().unwrap();
+
+        pc.register_endpoint(endpoint, callback).unwrap();
     }
 
     pub fn get_provisioned_creds(&self) -> Option<(String, String)> {
@@ -84,42 +92,29 @@ impl<'a> WifiProvisioningMgr<'a> {
         }
     }
 
-    fn add_listeners(&mut self) {
+    fn register_listeners(&self) {
         log::info!("adding provisioning listeners");
-        let mut http_server = self.http_server.lock().unwrap();
         let wifi_driv_prov_config = self.wifi_client.clone();
         let wifi_driv_prov_scan = self.wifi_client.clone();
 
-        http_server.add_listener(
-            "/proto-ver".to_string(),
-            HttpMethod::POST,
-            Box::new(proto_ver_callback),
-        );
+        let pc = self.protocomm.lock().unwrap();
+        pc.set_security_endpoint("prov-session").unwrap(); // hardcoded sec params for sec0
 
-        http_server.add_listener(
-            "/prov-session".to_string(),
-            HttpMethod::POST,
-            Box::new(prov_session_callback),
-        );
+        pc.register_endpoint("proto-ver", proto_ver_callback)
+            .unwrap();
 
-        http_server.add_listener(
-            "/prov-config".to_string(),
-            HttpMethod::POST,
-            Box::new(move |req| -> HttpResponse {
-                prov_config_callback(req, wifi_driv_prov_config.clone())
-            }),
-        );
+        pc.register_endpoint("prov-config", move |ep, data| -> Vec<u8> {
+            prov_config_callback(ep, data, wifi_driv_prov_config.to_owned())
+        })
+        .unwrap();
 
-        http_server.add_listener(
-            "/prov-scan".to_string(),
-            HttpMethod::POST,
-            Box::new(move |req| -> HttpResponse {
-                prov_scan_callback(req, wifi_driv_prov_scan.clone())
-            }),
-        );
+        pc.register_endpoint("prov-scan", move |ep, data| -> Vec<u8> {
+            prov_scan_callback(ep, data, wifi_driv_prov_scan.to_owned())
+        })
+        .unwrap();
     }
 
-    fn init_ap(&mut self, device_name: String) {
+    fn init_ap(&self, device_name: String) {
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         let apconf = WifiApConfig {
             ssid: format!("PROV_{}", device_name),
@@ -130,7 +125,7 @@ impl<'a> WifiProvisioningMgr<'a> {
     }
 }
 
-fn proto_ver_callback(_req: HttpRequest) -> HttpResponse {
+fn proto_ver_callback(_ep: String, _inp_data: Vec<u8>) -> Vec<u8> {
     let response = json!({
      "prov": {
         "ver": "v1.1",
@@ -138,33 +133,17 @@ fn proto_ver_callback(_req: HttpRequest) -> HttpResponse {
         "cap": ["wifi_scan", "no_pop", "no_sec"]
      }
     });
-    HttpResponse::from_bytes(Vec::from(response.to_string()))
-}
 
-fn prov_session_callback(mut _req: HttpRequest) -> HttpResponse {
-    let mut res_proto = SessionData::default();
-    res_proto.set_sec_ver(SecSchemeVersion::SecScheme0);
-    res_proto.proto = Some(session_data::Proto::Sec0(Sec0Payload {
-        msg: Sec0MsgType::S0SessionResponse.into(),
-        payload: Some(sec0_payload::Payload::Sr(S0SessionResp {
-            status: Status::Success.into(),
-        })),
-    }));
-
-    let res_data = res_proto.encode_to_vec();
-
-    HttpResponse::from_bytes(res_data)
+    Vec::from(response.to_string())
 }
 
 fn prov_config_callback(
-    mut req: HttpRequest,
+    _ep: String,
+    data: Vec<u8>,
     wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
-) -> HttpResponse {
+) -> Vec<u8> {
     log::info!("prov_config called");
-    let req_data = req.data();
-    let req_proto = WiFiConfigPayload::decode(&*req_data).unwrap();
-
-    log::info!("prov_config: {:?}", req_proto);
+    let req_proto = WiFiConfigPayload::decode(&*data).unwrap();
 
     let msg_type = req_proto.msg();
     let res = match msg_type {
@@ -175,15 +154,16 @@ fn prov_config_callback(
         WiFiConfigMsgType::TypeCmdApplyConfig => handle_cmd_apply_config(),
         _ => unreachable!(),
     };
-    HttpResponse::from_bytes(&*res)
+
+    res
 }
 
 fn prov_scan_callback<'a>(
-    mut req: HttpRequest,
+    _ep: String,
+    data: Vec<u8>,
     wifi_driv: WrappedInArcMutex<WifiMgr<'a>>,
-) -> HttpResponse {
-    let req_data = req.data();
-    let req_proto = WiFiScanPayload::decode(&*req_data).unwrap();
+) -> Vec<u8> {
+    let req_proto = WiFiScanPayload::decode(&*data).unwrap();
     let msg_type = req_proto.msg();
 
     let res = match msg_type {
@@ -193,7 +173,7 @@ fn prov_scan_callback<'a>(
         _ => unreachable!(),
     };
 
-    HttpResponse::from_bytes(&*res)
+    res
 }
 
 fn handle_cmd_set_config(

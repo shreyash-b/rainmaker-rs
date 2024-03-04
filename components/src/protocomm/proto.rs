@@ -1,4 +1,3 @@
-pub use prost::Message;
 include!(concat!(env!("OUT_DIR"), "/session.rs"));
 
 impl From<crate::wifi::WifiAuthMode> for WifiAuthMode {
