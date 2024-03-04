@@ -227,9 +227,20 @@ fn handle_cmd_apply_config() -> Vec<u8> {
     resp_msg.encode_to_vec()
 }
 
-fn handle_cmd_get_status(_wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
-    // let wifi_driv = wifi_driv.lock().unwrap();
-    // let wifi_config = wifi_driv.get_wifi_config();
+fn handle_cmd_get_status(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
+    let wifi_driv = wifi_driv.lock().unwrap();
+    let wifi_client_config = wifi_driv.get_wifi_config().1.unwrap();
+    let ip_addr = wifi_driv.get_ip_addr();
+
+    drop(wifi_driv); // no longer needed
+
+    let wifi_state = WifiConnectedState{
+        ip4_addr: ip_addr.to_string(),
+        auth_mode: components::protocomm::WifiAuthMode::from(wifi_client_config.auth).into(),
+        ssid: wifi_client_config.ssid.into(), // to vector
+        bssid: vec![],
+        channel: 0,
+    };
 
     let mut resp_msg = WiFiConfigPayload::default();
     resp_msg.msg = WiFiConfigMsgType::TypeRespGetStatus.into();
@@ -238,17 +249,10 @@ fn handle_cmd_get_status(_wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> 
         RespGetStatus {
             status: Status::Success.into(),
             sta_state: WifiStationState::Connected.into(),
-            state: Some(resp_get_status::State::Connected(WifiConnectedState {
-                ip4_addr: "192.168.15.15".to_string(),
-                auth_mode: components::protocomm::WifiAuthMode::Open.into(),
-                ssid: String::from("dummy_connected_wifi").encode_to_vec(),
-                bssid: vec![],
-                channel: 5,
-            })),
+            state: Some(resp_get_status::State::Connected(wifi_state)),
         },
     ));
-
-    log::info!("faking current state of wifi");
+    
     resp_msg.encode_to_vec()
 }
 
@@ -289,6 +293,7 @@ fn handle_cmd_scan_result(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> 
     let mut wifi_driv = wifi_driv.lock().unwrap();
     let wifi_networks = wifi_driv.scan().unwrap();
     drop(wifi_driv);
+    
     let mut scan_results = Vec::<WiFiScanResult>::new();
 
     for entry in wifi_networks {
