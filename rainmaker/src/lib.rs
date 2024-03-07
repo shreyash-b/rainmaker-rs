@@ -338,8 +338,12 @@ where
 }
 
 fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
+    let print_mqtt_event = |event_name: MqttEvent| {
+        log::info!("mqtt: {event_name:?}")
+    };
+
     match event {
-        mqtt::MqttEvent::Received(msg) => {
+        MqttEvent::Received(msg) => {
             // for now we can let's assume the only place we'll receive this is from params/remote
             let received_val: HashMap<String, HashMap<String, Value>> =
                 serde_json::from_str(&String::from_utf8(msg.payload).unwrap()).unwrap();
@@ -349,9 +353,12 @@ fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
                 node.exeute_device_callback(&device, params);
             }
         }
-        _ => {
-            log::info!("mqtt event: {:?}", event)
+
+        MqttEvent::Connected | MqttEvent::Disconnected => {
+            print_mqtt_event(event)
         }
+
+        _ => {}
     }
 }
 
