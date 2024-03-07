@@ -7,7 +7,7 @@ pub mod wifi_prov;
 use components::{
     mqtt::{self, MqttClient, MqttConfiguration, MqttEvent, TLSconfiguration},
     persistent_storage::{Nvs, NvsPartition},
-    wifi::{WifiClientConfig, WifiMgr},
+    wifi::WifiMgr,
 };
 use error::RMakerError;
 use node::Node;
@@ -20,12 +20,18 @@ use std::{
 };
 
 use prost::Message;
+
+#[cfg(target_os = "espidf")]
 use wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
 
-pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
+#[cfg(target_os = "espidf")]
+use components::wifi::WifiClientConfig;
 
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
+
+pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
+
 pub struct Rainmaker<'a> {
     node_id: String,
     wifi_driv: WrappedInArcMutex<WifiMgr<'a>>,
@@ -159,6 +165,7 @@ where
         self.node = Some(node.into());
     }
 
+    #[cfg(target_os = "espidf")]
     pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
         let prov_mgr = WifiProvisioningMgr::new(None, self.wifi_driv.clone());
 
@@ -192,6 +199,12 @@ where
             }
         };
 
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
+        log::info!("Running on linux.. Skipping WiFi setup");
         Ok(())
     }
 
@@ -246,6 +259,7 @@ where
         Ok(())
     }
 
+    #[cfg(target_os = "espidf")]
     fn start_wifi_provisioning(&mut self) -> Result<(), RMakerError> {
         let prov_mgr = self.prov_mgr.as_ref().unwrap();
         prov_mgr.init(WifiProvisioningConfig {
