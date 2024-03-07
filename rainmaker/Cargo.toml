@@ -6,10 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = { version = "1.0.79", default-features = false }
 components = { path = "../components" }
+log = { version = "0.4.20", default-features = false }
+serde = { version = "1.0.196", features = ["derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+prost = "0.12.3"
 
 [target.'cfg(target_os="linux")'.dependencies]
 simple_logger = "4.3.3"
 
 [target.'cfg(target_os="espidf")'.dependencies]
-esp-idf-svc = "0.47.3"
+esp-idf-svc = { version = "0.47.3", default-features = false, features = ["alloc"] }
+
+[build-dependencies]
+prost-build = "0.12.3"

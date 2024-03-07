@@ -6,3 +6,9 @@ license = "GPL-3.0-only"
 [profile.dev]
 opt-level = "z"
 debug = true
+# lto = true
+
+[profile.release]
+opt-level = "z"
+strip = true
+panic = "abort"

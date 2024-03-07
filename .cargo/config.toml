@@ -1,25 +1,21 @@
 [target.riscv32imc-esp-espidf]
-runner = "espflash flash --monitor"
+runner = "espflash flash --partition-table partitions.csv --monitor"
 linker = "ldproxy"
-rustflags = [
-    "--cfg", "espidf_time64",
-    "-C", "default-linker-libraries"
-]
+rustflags = ["--cfg", "espidf_time64", "-C", "default-linker-libraries", "-Z", "location-detail=none"]
 
 [target.xtensa-esp32-espidf]
-runner = "espflash flash --monitor"
+runner = "espflash flash --partition-table partitions.csv --monitor"
 linker = "ldproxy"
-rustflags = [
-    "--cfg", "espidf_time64",
-]
+rustflags = ["--cfg", "espidf_time64"]
 
 [build]
 target = ["riscv32imc-esp-espidf", "x86_64-unknown-linux-gnu"]
+# target = "riscv32imc-esp-espidf"
+# target = "x86_64-unknown-linux-gnu"
 
 [alias]
 run_linux = "run --target x86_64-unknown-linux-gnu"
-run_esp32c3 = "run --target riscv32imc-esp-espidf"
+run_esp = "run --target riscv32imc-esp-espidf"
 
 [unstable]
 build-std = ["std", "panic_abort"]
-

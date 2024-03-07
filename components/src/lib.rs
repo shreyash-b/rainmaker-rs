@@ -1,3 +1,12 @@
+#![feature(map_try_insert)] // used in http_linux.rs
+
+pub mod error;
+pub mod http;
+pub mod mqtt;
+pub mod persistent_storage;
+pub mod protocomm;
+pub mod wifi;
+
 fn hello(name: &str) {
     log::info!("hello from {}", name);
 }
