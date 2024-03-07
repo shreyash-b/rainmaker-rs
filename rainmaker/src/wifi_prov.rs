@@ -234,7 +234,7 @@ fn handle_cmd_get_status(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
 
     drop(wifi_driv); // no longer needed
 
-    let wifi_state = WifiConnectedState{
+    let wifi_state = WifiConnectedState {
         ip4_addr: ip_addr.to_string(),
         auth_mode: components::protocomm::WifiAuthMode::from(wifi_client_config.auth).into(),
         ssid: wifi_client_config.ssid.into(), // to vector
@@ -252,7 +252,7 @@ fn handle_cmd_get_status(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
             state: Some(resp_get_status::State::Connected(wifi_state)),
         },
     ));
-    
+
     resp_msg.encode_to_vec()
 }
 
@@ -293,7 +293,7 @@ fn handle_cmd_scan_result(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> 
     let mut wifi_driv = wifi_driv.lock().unwrap();
     let wifi_networks = wifi_driv.scan().unwrap();
     drop(wifi_driv);
-    
+
     let mut scan_results = Vec::<WiFiScanResult>::new();
 
     for entry in wifi_networks {

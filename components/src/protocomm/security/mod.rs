@@ -1,4 +1,4 @@
-pub(crate) trait SecurityTrait{
+pub(crate) trait SecurityTrait {
     type SecParams;
 
     fn security_handler(ep: String, data: Vec<u8>) -> Vec<u8>;

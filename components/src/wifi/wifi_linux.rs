@@ -42,7 +42,7 @@ impl WifiMgr<()> {
         }])
     }
 
-    pub fn get_ip_addr(&self) -> std::net::Ipv4Addr{
+    pub fn get_ip_addr(&self) -> std::net::Ipv4Addr {
         // TODO
 
         std::net::Ipv4Addr::new(127, 0, 0, 1) // dummy

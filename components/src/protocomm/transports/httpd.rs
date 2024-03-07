@@ -1,6 +1,6 @@
+use crate::protocomm::protocomm_req_handler;
 use crate::protocomm::transports::TransportTrait;
 use std::borrow::Borrow;
-use crate::protocomm::protocomm_req_handler;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
@@ -23,22 +23,19 @@ impl<'a> TransportHttpd<'a> {
     pub fn start_listening(&self) {
         self.http_server.lock().unwrap().listen();
     }
-
 }
 
 impl<'a> TransportTrait<'a> for TransportHttpd<'a> {
     fn add_endpoint<T>(&self, ep_name: &str, cb: T)
     where
-    T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'a,
+        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'a,
     {
         let mut http_server = self.http_server.lock().unwrap();
         let ep = "/".to_string() + &ep_name;
         http_server.add_listener(
             ep,
             HttpMethod::POST,
-            Box::new(move |req| -> HttpResponse {
-                http_callback(req, cb.borrow())
-            }),
+            Box::new(move |req| -> HttpResponse { http_callback(req, cb.borrow()) }),
         );
     }
 }

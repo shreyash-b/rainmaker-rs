@@ -71,6 +71,10 @@ impl Default for HttpConfiguration {
 pub struct HttpServer<'a, T> {
     pub(crate) server: T,
     #[allow(dead_code)]
-    pub(crate) listeners:
-        Option<HashMap<String, HashMap<HttpMethod, Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync + 'a>>>>,
+    pub(crate) listeners: Option<
+        HashMap<
+            String,
+            HashMap<HttpMethod, Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync + 'a>>,
+        >,
+    >,
 }
