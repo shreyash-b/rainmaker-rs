@@ -104,6 +104,7 @@ where
         match curr_node {
             Some(node) => {
                 let node_config = serde_json::to_string(node.as_ref()).unwrap();
+                log::info!("publishing nodeconfig");
                 mqtt.publish(
                     &node_config_topic,
                     &mqtt::QoSLevel::AtLeastOnce,
@@ -144,12 +145,11 @@ where
     }
 
     pub fn report_params(&self, device_name: &str, params: HashMap<String, Value>) {
-        log::info!("Rainmaker: reporting params");
         let updated_params = json!({
             device_name: params
         });
 
-        log::info!("reporting: {}", updated_params.to_string());
+        log::info!("reporting params: {}", updated_params.to_string());
         let mqtt = self.mqtt_client.as_ref().unwrap();
         let mut mqtt = mqtt.lock().unwrap();
 
@@ -338,9 +338,7 @@ where
 }
 
 fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
-    let print_mqtt_event = |event_name: MqttEvent| {
-        log::info!("mqtt: {event_name:?}")
-    };
+    let print_mqtt_event = |event_name: MqttEvent| log::info!("mqtt: {event_name:?}");
 
     match event {
         MqttEvent::Received(msg) => {
@@ -354,9 +352,7 @@ fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
             }
         }
 
-        MqttEvent::Connected | MqttEvent::Disconnected => {
-            print_mqtt_event(event)
-        }
+        MqttEvent::Connected | MqttEvent::Disconnected => print_mqtt_event(event),
 
         _ => {}
     }
