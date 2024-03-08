@@ -261,7 +261,7 @@ where
 
     #[cfg(target_os = "espidf")]
     fn start_wifi_provisioning(&mut self) -> Result<(), RMakerError> {
-        let prov_mgr = self.prov_mgr.as_ref().unwrap();
+        let prov_mgr = self.prov_mgr.as_mut().unwrap();
         prov_mgr.init(WifiProvisioningConfig {
             device_name: "ABC12".to_string(),
             scheme: wifi_prov::WifiProvScheme::SoftAP,

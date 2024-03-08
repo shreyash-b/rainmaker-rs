@@ -28,6 +28,7 @@ pub struct WifiProvisioningConfig {
 pub struct WifiProvisioningMgr<'a> {
     protocomm: WrappedInArcMutex<Protocomm<'a>>,
     wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
+    device_name: Option<String>,
     _phantom: PhantomData<&'a ()>, // for compiler to not complain about lifetime parameter
 }
 
@@ -48,12 +49,14 @@ impl<'a> WifiProvisioningMgr<'a> {
         Self {
             protocomm: protocomm_new,
             wifi_client,
+            device_name: None,
             _phantom: PhantomData,
         }
     }
 
-    pub fn init(&self, config: WifiProvisioningConfig) {
-        self.init_ap(config.device_name);
+    pub fn init(&mut self, config: WifiProvisioningConfig) {
+        self.init_ap(config.device_name.clone());
+        self.device_name = Some(config.device_name);
         self.register_listeners();
     }
 
@@ -64,6 +67,7 @@ impl<'a> WifiProvisioningMgr<'a> {
         drop(wifi_driv);
 
         let pc = self.protocomm.lock().unwrap();
+        self.print_prov_url();
         pc.start();
 
         Ok(())
@@ -122,6 +126,18 @@ impl<'a> WifiProvisioningMgr<'a> {
         };
 
         wifi_driv.set_ap_config(apconf).unwrap();
+    }
+
+    fn print_prov_url(&self){
+        let data_json = json!({
+            "ver":"v1",
+            "name": self.device_name,
+            "transport":"softap" // becoz no ble
+        });
+
+        let qr_url = format!("https://espressif.github.io/esp-jumpstart/qrcode.html?data={}", data_json.to_string());
+
+        log::info!("Provisioning started. Visit following url to provision node: {}", qr_url);
     }
 }
 
