@@ -1,7 +1,7 @@
 
-# Rust Implementation of ESP Rainmaker
+# Rust Implementation of ESP RainMaker
 
-A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux using Rust.
+A cross-platform implementation of ESP RainMaker for ESP32 products and Linux using Rust.
 
 
 
@@ -10,7 +10,7 @@ A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux us
 Follow the [Prerequisites](https://github.com/esp-rs/esp-idf-template#prerequisites) section in the ``` esp-idf-template``` crate.
 
 
-## Get rainmaker-rs
+## Get RainMaker-rs
 
 Please clone this repository using the below command:
 
@@ -83,5 +83,5 @@ When running for the first time, you'll need to set ```RMAKER_CLAIMDATA_PATH``` 
 ### Note
 
 - **When running on ESP32 for first time, on initial boot it will start wifi provisioning and user node mapping.** 
-- **After performing wifi provisioning using Rainmaker Android application restart the ESP32 for normal functioning**
+- **After performing wifi provisioning using RainMaker Android application restart the ESP32 for normal functioning.**
 ---
