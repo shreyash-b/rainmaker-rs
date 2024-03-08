@@ -7,7 +7,8 @@ A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux us
 
 ## Build Prerequisites
 
-Follow the [Prerequisites](https://github.com/esp-rs/esp-idf-template#prerequisites) section in the ``` esp-idf-template``` crate.
+- Follow the [Prerequisites](https://github.com/esp-rs/esp-idf-template#prerequisites) section in the ``` esp-idf-template``` crate.
+- Install Protobuf compiler on your system.
 
 
 ## Get rainmaker-rs
