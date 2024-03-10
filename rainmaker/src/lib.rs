@@ -32,11 +32,11 @@ use std::{env, fs, path::Path};
 
 pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
 
+#[allow(dead_code)]
 pub struct Rainmaker<'a> {
     node_id: String,
     wifi_driv: WrappedInArcMutex<WifiMgr<'a>>,
     prov_mgr: Option<wifi_prov::WifiProvisioningMgr<'a>>,
-    #[allow(dead_code)]
     // remove this later when mqtt client passing works for user_cloud_mapping on esp
     mqtt_client: Option<WrappedInArcMutex<MqttClient<'a>>>,
     node: Option<Arc<node::Node<'a>>>,
@@ -167,10 +167,9 @@ where
 
     #[cfg(target_os = "espidf")]
     pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
-        let prov_mgr = WifiProvisioningMgr::new(None, self.wifi_driv.clone());
-
-        let provisioned_status = prov_mgr.get_provisioned_creds();
-
+        
+        let provisioned_status = WifiProvisioningMgr::get_provisioned_creds();
+        
         match provisioned_status {
             Some((ssid, password)) => {
                 log::info!(
@@ -178,13 +177,13 @@ where
                     ssid,
                     password
                 );
-
+                
                 let wifi_client_config = WifiClientConfig {
                     ssid,
                     password,
                     ..Default::default()
                 };
-
+                
                 let mut wifi = self.wifi_driv.lock().unwrap();
                 wifi.set_client_config(wifi_client_config).unwrap();
                 wifi.start().unwrap();
@@ -193,15 +192,16 @@ where
             }
             None => {
                 self.mqtt_init()?;
+                let prov_mgr = WifiProvisioningMgr::new(None, self.wifi_driv.clone());
                 log::info!("Node not provisioned previously. Starting Wi-Fi Provisioning");
                 self.prov_mgr = Some(prov_mgr);
                 self.start_wifi_provisioning()?;
             }
         };
-
+        
         Ok(())
     }
-
+    
     #[cfg(target_os = "linux")]
     pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
         log::info!("Running on linux.. Skipping WiFi setup");

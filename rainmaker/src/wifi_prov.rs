@@ -83,7 +83,7 @@ impl<'a> WifiProvisioningMgr<'a> {
         pc.register_endpoint(endpoint, callback).unwrap();
     }
 
-    pub fn get_provisioned_creds(&self) -> Option<(String, String)> {
+    pub fn get_provisioned_creds() -> Option<(String, String)> {
         let nvs = Nvs::new(NvsPartition::new("nvs").unwrap(), "wifi_creds").unwrap();
         let ssid_nvs = nvs.get_bytes("ssid");
         if ssid_nvs == None {
