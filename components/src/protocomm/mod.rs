@@ -20,7 +20,7 @@ pub enum ProtocomTransport<'a> {
 impl ProtocomTransport<'_> {
     fn start(&self) {
         match self {
-            ProtocomTransport::Httpd(t) => t.start_listening(),
+            ProtocomTransport::Httpd(_) => {},
             ProtocomTransport::Pd(_) => todo!(),
         }
     }
@@ -52,7 +52,7 @@ impl<'a> Protocomm<'a> {
 
     pub fn register_endpoint<T>(&self, ep_name: &str, callback: T) -> Result<(), Error>
     where
-        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'a,
+        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
     {
         match &self.transport {
             ProtocomTransport::Httpd(t) => {

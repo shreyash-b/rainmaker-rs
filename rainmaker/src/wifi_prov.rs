@@ -27,7 +27,7 @@ pub struct WifiProvisioningConfig {
 
 pub struct WifiProvisioningMgr<'a> {
     protocomm: WrappedInArcMutex<Protocomm<'a>>,
-    wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
+    wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
     device_name: Option<String>,
     _phantom: PhantomData<&'a ()>, // for compiler to not complain about lifetime parameter
 }
@@ -35,7 +35,7 @@ pub struct WifiProvisioningMgr<'a> {
 impl<'a> WifiProvisioningMgr<'a> {
     pub fn new(
         protocomm: Option<WrappedInArcMutex<Protocomm<'a>>>,
-        wifi_client: WrappedInArcMutex<WifiMgr<'a>>,
+        wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
     ) -> Self {
         let protocomm_new: WrappedInArcMutex<Protocomm>;
         if protocomm.is_none() {
@@ -75,7 +75,7 @@ impl<'a> WifiProvisioningMgr<'a> {
 
     pub fn add_endpoint<T>(&self, endpoint: &str, callback: T)
     where
-        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'a,
+        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
     {
         // todo: look into how idf-c does it and make it transport independent
         let pc = self.protocomm.lock().unwrap();

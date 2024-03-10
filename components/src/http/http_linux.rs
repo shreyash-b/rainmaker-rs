@@ -1,8 +1,15 @@
 #![cfg(target_os = "linux")]
 
+static LOGGER_TARGET: &str = "http_server";
+
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread::{self, JoinHandle};
 
+use log::{error, info};
+
+use crate::error::Error;
 use crate::http::base::*;
 
 impl From<&tiny_http::Method> for HttpMethod {
@@ -32,76 +39,106 @@ impl From<&mut tiny_http::Request> for HttpRequest {
     }
 }
 
-impl<'a> HttpServer<'a, tiny_http::Server> {
-    pub fn new(config: &HttpConfiguration) -> anyhow::Result<Self> {
-        Ok(HttpServer {
-            server: tiny_http::Server::http(SocketAddr::new(config.addr, config.port)).unwrap(),
-            listeners: Some(HashMap::new()),
-        })
+pub trait HttpEndpointCallback<'a> = Fn(HttpRequest) -> HttpResponse + Send + Sync + 'a;
+type WrappedInArcMutex<T> = Arc<Mutex<T>>;
+
+fn wrap_in_arc_mutex<T>(inp: T) -> WrappedInArcMutex<T> {
+    Arc::new(Mutex::new(inp))
+}
+
+// http server from esp-idf-svc starts listening as soon as it is initialized and supports registering callback handlers later on
+// however tiny_http is a blocking server
+// we linux http server with idf by creating a hashmap mutex and spawning tiny_http in a separate thread
+pub struct HttpServerLinux {
+    // inner hashmap to store mapping of endpoint method with callback
+    // outer hashmap to store mapping to endpoint url with inner hashmap
+    callbacks:
+        WrappedInArcMutex<HashMap<String, HashMap<HttpMethod, Box<dyn HttpEndpointCallback<'static>>>>>,
+    execution_thread_handle: Option<JoinHandle<()>>,
+    executor_channel: mpsc::Sender<()>
+}
+
+impl HttpServer<HttpServerLinux> {
+    pub fn new(config: &HttpConfiguration) -> Result<Self, Error> {
+        let callbacks: HashMap<String, HashMap<HttpMethod, Box<dyn HttpEndpointCallback<'static>>>> =
+            HashMap::new();
+        let callbacks_mutex = wrap_in_arc_mutex(callbacks);
+        let callbacks_mutex_clone = callbacks_mutex.clone();
+
+        let server = tiny_http::Server::http(SocketAddr::new(config.addr, config.port)).unwrap();
+        
+        // use a channel to send a dummy data to stop http server
+        let (sender, recver) = mpsc::channel::<()>();
+
+        // execute a server in a separate thread
+        let executor_joinhandle = thread::spawn(move || {
+            let callbacks = callbacks_mutex_clone.to_owned();
+            while recver.try_recv().is_err() { // untill there is no data in the buffer
+                let mut req = match server.recv() {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!(target: LOGGER_TARGET, "unable to receive http request: {e}");
+                        continue;
+                    }
+                };
+
+                let req_ep = req.url();
+                let req_method = req.method();
+
+                let callbacks_lock = callbacks.lock().unwrap();
+
+                let res = match callbacks_lock.get(req_ep) {
+                    Some(h) => match h.get(&req_method.into()) {
+                        Some(cb) => {
+                            // callback exists, execute callback
+                            cb(HttpRequest::from(&mut req))
+                        }
+                        None => HttpResponse::from_bytes("invalid method"),
+                    },
+                    None => HttpResponse::from_bytes("invalid url"),
+                };
+
+                req.respond(tiny_http::Response::from_data(res.get_bytes_vectored())).unwrap();
+            }
+        });
+
+        // let executor_joinhandle = thread::spawn(|| {});
+
+        Ok(Self(HttpServerLinux {
+            callbacks: callbacks_mutex,
+            execution_thread_handle: Some(executor_joinhandle),
+            executor_channel: sender
+        }))
     }
 
-    pub fn add_listener(
-        &mut self,
-        path: String,
-        method: HttpMethod,
-        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync + 'a>,
-    ) {
+    pub fn add_listener<T>(&mut self, path: String, method: HttpMethod, callback: T)
+    where
+        T: HttpEndpointCallback<'static>,
+    {
         // if inner hashmap does not exist for a path, create it
-        let paths_hmap = self.listeners.as_mut().unwrap();
+        let mut paths_hmap = self.0.callbacks.lock().unwrap();
         let _ = paths_hmap.try_insert(path.clone(), HashMap::new()); // we can safely ignore the err
 
         // insert the callback and check for error
         let callbacks_hashmap = paths_hmap.get_mut(&path).unwrap();
-        match callbacks_hashmap.try_insert(method, callback) {
-            Ok(_) => {}
+        match callbacks_hashmap.try_insert(method, Box::new(callback)) {
+            Ok(_) => {
+                info!(target: LOGGER_TARGET, "successfully registered handler for {path}")
+            }
             Err(_) => {
-                panic!("callback already exists");
+                error!(target: LOGGER_TARGET, "handler for {path} for already exists");
             }
         }
     }
+}
 
-    pub fn listen(&self) {
-        loop {
-            log::info!("http server is listening");
-            let mut req = self.server.recv().unwrap();
-            let path_callbacks = self.listeners.as_ref().unwrap().get(req.url());
+impl Drop for HttpServerLinux{
+    fn drop(&mut self) {
+        // send a message to stop the server from listening
+        self.executor_channel.send(()).unwrap();
 
-            let http_request = HttpRequest::from(&mut req);
-            let response = match path_callbacks {
-                Some(callbacks) => match callbacks.get(&http_request.method()) {
-                    Some(callback) => callback(http_request),
-                    None => HttpResponse::from_bytes("invalid method"),
-                },
-                None => {
-                    log::info!("path: {} not found", req.url());
-                    // let mut buf = Vec::with_capacity(2048);
-                    // req.as_reader().read_to_end(&mut buf).unwrap();
-
-                    // let buf_arr: &[u8] = buf.as_ref();
-                    // log::info!("{:?}", protocomm::SessionData::decode(buf_arr));
-
-                    // let res = protocomm::SessionData{
-                    //     sec_ver: SecSchemeVersion::SecScheme0.into(),
-                    //     proto:  Some(Proto::Sec0(
-                    //         Sec0Payload{
-                    //             msg: Sec0MsgType::S0SessionResponse.into(),
-                    //             payload: Some(sec0_payload::Payload::Sr(S0SessionResp{
-                    //                 status: Status::Success.into()
-                    //             }))
-                    //         }
-                    //     ))
-                    // };
-
-                    // let res = HttpResponse::from_bytes(res.encode_to_vec());
-
-                    HttpResponse::from_bytes("404 not found".as_bytes())
-                }
-            };
-
-            req.respond(tiny_http::Response::from_data(
-                response.get_bytes_vectored(),
-            ))
-            .unwrap()
-        }
+        let join_handle = std::mem::replace(&mut self.execution_thread_handle, None);
+        // wait for thread to gracefully exit
+        join_handle.map(|s| s.join());
     }
 }
