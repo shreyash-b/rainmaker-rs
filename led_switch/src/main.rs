@@ -19,6 +19,7 @@ use std::sync::Mutex;
 use rainmaker::{
     error::RMakerError,
     node::{Info, Node},
+    scenes,
     Rainmaker,
 };
 use serde_json::Value;
@@ -99,9 +100,11 @@ fn main() -> Result<(), RMakerError> {
     );
     node.add_device(light_device);
     node.add_device(led_device);
+    node.enable_scenes();
     rmaker.register_node(node);
     rmaker.init_wifi()?;
     rmaker.start()?;
+    
     drop(rmaker); // drop the lock so that callbacks can use it
     rainmaker::prevent_drop();
 

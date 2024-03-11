@@ -6,3 +6,8 @@ license = "GPL-3.0-only"
 [profile.dev]
 opt-level = "z"
 debug = true
+
+[patch.crates-io]
+embedded-svc = { git = "https://github.com/esp-rs/embedded-svc" }
+esp-idf-hal = { git = "https://github.com/esp-rs/esp-idf-hal" }
+esp-idf-sys = { git = "https://github.com/esp-rs/esp-idf-sys" }

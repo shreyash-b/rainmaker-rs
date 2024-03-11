@@ -3,6 +3,7 @@ include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 pub mod error;
 pub mod node;
 pub mod wifi_prov;
+pub mod scenes;
 
 use components::{
     http::{HttpConfiguration, HttpServer},

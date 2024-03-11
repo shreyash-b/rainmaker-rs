@@ -69,5 +69,4 @@ fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'stati
     let rmaker_lock = rmaker.lock().unwrap();
     rmaker_lock.report_params("LED", params);
     drop(rmaker_lock);
-
 }

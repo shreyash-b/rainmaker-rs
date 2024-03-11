@@ -32,8 +32,10 @@ use std::{collections::HashMap, fmt::Debug};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::scenes::SCENES;
+
 type DeviceCbType<'a> = Box<dyn Fn(HashMap<String, Value>) + Send + Sync + 'a>;
-// type DeviceCbType<'a> = Box<dyn Fn(HashMap<String, ParamDataType>) + Send + Sync + 'a>;
+// type ParamCbType<'a> = Box<dyn Fn(HashMap<String, ParamDataType>) + Send + Sync + 'a>;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum DeviceType {
@@ -45,6 +47,8 @@ pub enum DeviceType {
     Light,
     #[serde(rename = "esp.device.fan")]
     Fan,
+    #[serde(rename = "esp.service.scenes")]
+    Scenes,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -109,7 +113,8 @@ pub struct Param {
     properties: Vec<String>,
     #[serde(rename = "type")]
     param_type: ParamTypes,
-    ui_type: UiTypes,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ui_type: Option<UiTypes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bounds: Option<Bounds>,
     initial_state: Value
@@ -125,6 +130,8 @@ pub enum ParamTypes {
     Hue,
     #[serde(rename = "esp.param.saturation")]
     Saturation,
+    #[serde(rename = "esp.param.scenes")]
+    Scene,
 }
 
 #[derive(Debug)]
@@ -220,6 +227,25 @@ impl<'a> Node<'a> {
         device_params
 
     }
+
+    pub fn enable_scenes(&mut self) {
+        let mut scenes = Device::new(
+            "Scenes",
+            DeviceType::Scenes,
+            "Scenes",
+            Vec::new(),
+        );
+        scenes.add_param(Param::new_without_ui(
+            "Scenes",
+            "Array",
+            // Extremely ABSURD way don't know any other way
+            Value::String(serde_json::to_string(unsafe { &SCENES }).unwrap()),
+            ParamTypes::Scene,
+            Vec::new(),
+        ));
+        scenes.register_callback(Box::new(|params| crate::scenes::scenecb(params)));
+        self.add_device(scenes);
+    }
 }
 
 impl<'a> Device<'a> {
@@ -287,9 +313,27 @@ impl Param {
             data_type: data_type.to_owned(),
             properties,
             param_type,
-            ui_type,
             bounds: None,
-            initial_state
+            initial_state,
+            ui_type: Some(ui_type),
+        }
+    }
+
+    pub fn new_without_ui(
+        name: &str,
+        data_type: &str,
+        initial_state: Value,
+        param_type: ParamTypes,
+        properties: Vec<String>
+    ) -> Param {
+        Param {
+            name: name.to_owned(),
+            data_type: data_type.to_owned(),
+            properties,
+            param_type,
+            bounds: None,
+            initial_state,
+            ui_type: None,
         }
     }
 
