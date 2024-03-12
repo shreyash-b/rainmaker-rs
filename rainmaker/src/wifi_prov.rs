@@ -129,9 +129,10 @@ impl<'a> WifiProvisioningMgr<'a> {
     }
 
     fn print_prov_url(&self){
+        let device_name = self.device_name.as_ref().unwrap();
         let data_json = json!({
             "ver":"v1",
-            "name": self.device_name,
+            "name": format!("PROV_{device_name}"),
             "transport":"softap" // becoz no ble
         });
 
