@@ -2,11 +2,11 @@
 
 use embedded_svc::{http::Headers, io::Read};
 use esp_idf_svc::{
-    http::server::{EspHttpConnection, Request},
+    http::server::{EspHttpConnection, EspHttpServer, Request},
     io::Write,
 };
 
-use crate::http::base::*;
+use crate::{error::Error, http::base::*};
 
 impl From<esp_idf_svc::http::Method> for HttpMethod {
     fn from(value: esp_idf_svc::http::Method) -> Self {
@@ -47,22 +47,19 @@ impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
 }
 
 impl<'a> HttpServer<esp_idf_svc::http::server::EspHttpServer<'a>> {
-    pub fn new(config: &HttpConfiguration) -> anyhow::Result<Self> {
+    pub fn new(config: &HttpConfiguration) -> Result<Self, Error> {
         let mut http_config = esp_idf_svc::http::server::Configuration::default();
         http_config.http_port = config.port;
-        Ok(HttpServer {
-            server: esp_idf_svc::http::server::EspHttpServer::new(&http_config).unwrap(),
-            listeners: None,
-        })
+        Ok(HttpServer(EspHttpServer::new(&http_config)?))
     }
 
     pub fn add_listener(
         &mut self,
         path: String,
         method: HttpMethod,
-        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send + 'a>,
+        callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send + 'static>,
     ) {
-        self.server
+        self.0
             .fn_handler(path.as_str(), method.into(), move |mut req| {
                 let user_req = HttpRequest::from(&mut req);
                 let user_response = callback(user_req);
@@ -74,6 +71,4 @@ impl<'a> HttpServer<esp_idf_svc::http::server::EspHttpServer<'a>> {
             })
             .unwrap();
     }
-
-    pub fn listen(&self) {}
 }

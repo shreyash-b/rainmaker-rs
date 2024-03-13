@@ -6,41 +6,44 @@ pub mod wifi_prov;
 pub mod local_ctrl_service;
 
 use components::{
-    http::{HttpConfiguration, HttpServer},
     mqtt::{self, MqttClient, MqttConfiguration, MqttEvent, TLSconfiguration},
     persistent_storage::{Nvs, NvsPartition},
-    wifi::{WifiClientConfig, WifiMgr},
+    wifi::WifiMgr,
 };
 use error::RMakerError;
 use node::Node;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex}, thread, time::Duration,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
 };
 
-use components::http::{HttpRequest, HttpResponse};
 use prost::Message;
+
+#[cfg(target_os = "espidf")]
 use wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
 
-pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
+#[cfg(target_os = "espidf")]
+use components::wifi::WifiClientConfig;
 
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
+
+pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
+
+#[allow(dead_code)]
 pub struct Rainmaker<'a> {
     node_id: String,
-    http_server: WrappedInArcMutex<HttpServer<'a>>,
     wifi_driv: WrappedInArcMutex<WifiMgr<'a>>,
     prov_mgr: Option<wifi_prov::WifiProvisioningMgr<'a>>,
-    #[allow(dead_code)]
     // remove this later when mqtt client passing works for user_cloud_mapping on esp
     mqtt_client: Option<WrappedInArcMutex<MqttClient<'a>>>,
     node: Option<Arc<node::Node<'a>>>,
 }
 
-unsafe impl Send for Rainmaker<'_>{
-
-}
+unsafe impl Send for Rainmaker<'_> {}
 
 impl<'a> Rainmaker<'a>
 where
@@ -50,9 +53,7 @@ where
         #[cfg(target_os = "linux")]
         Rainmaker::linux_init_claimdata();
 
-        let http_config = HttpConfiguration::default();
         let wifi_driv = WifiMgr::new()?;
-        let http_server = HttpServer::new(&http_config).unwrap();
 
         let fctry_partition = NvsPartition::new("fctry").unwrap();
         let fctry_nvs = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
@@ -61,7 +62,6 @@ where
 
         Ok(Self {
             node_id,
-            http_server: Arc::new(Mutex::new(http_server)),
             wifi_driv: Arc::new(Mutex::new(wifi_driv)),
             prov_mgr: None,
             // mqtt_client: Arc::new(Mutex::new(mqtt_client)),
@@ -105,6 +105,7 @@ where
         match curr_node {
             Some(node) => {
                 let node_config = serde_json::to_string(node.as_ref()).unwrap();
+                log::info!("publishing nodeconfig");
                 mqtt.publish(
                     &node_config_topic,
                     &mqtt::QoSLevel::AtLeastOnce,
@@ -115,9 +116,9 @@ where
                 let init_params = serde_json::to_string(&init_params).unwrap();
                 log::info!("publishing initial params: {}", init_params);
                 mqtt.publish(
-                    &params_local_init_topic, 
+                    &params_local_init_topic,
                     &mqtt::QoSLevel::AtLeastOnce,
-                    init_params.into()
+                    init_params.into(),
                 );
 
                 // while mqtt.subscribe(remote_param_topic.as_str(), &mqtt::QoSLevel::AtLeastOnce).is_err() {
@@ -145,12 +146,11 @@ where
     }
 
     pub fn report_params(&self, device_name: &str, params: HashMap<String, Value>) {
-        log::info!("Rainmaker: reporting params");
         let updated_params = json!({
             device_name: params
         });
 
-        log::info!("reporting: {}", updated_params.to_string());
+        log::info!("reporting params: {}", updated_params.to_string());
         let mqtt = self.mqtt_client.as_ref().unwrap();
         let mut mqtt = mqtt.lock().unwrap();
 
@@ -166,11 +166,11 @@ where
         self.node = Some(node.into());
     }
 
+    #[cfg(target_os = "espidf")]
     pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
-        let prov_mgr = WifiProvisioningMgr::new(self.http_server.clone(), self.wifi_driv.clone());
-
-        let provisioned_status = prov_mgr.get_provisioned_creds();
-
+        
+        let provisioned_status = WifiProvisioningMgr::get_provisioned_creds();
+        
         match provisioned_status {
             Some((ssid, password)) => {
                 log::info!(
@@ -178,13 +178,13 @@ where
                     ssid,
                     password
                 );
-
+                
                 let wifi_client_config = WifiClientConfig {
                     ssid,
                     password,
                     ..Default::default()
                 };
-
+                
                 let mut wifi = self.wifi_driv.lock().unwrap();
                 wifi.set_client_config(wifi_client_config).unwrap();
                 wifi.start().unwrap();
@@ -193,12 +193,19 @@ where
             }
             None => {
                 self.mqtt_init()?;
+                let prov_mgr = WifiProvisioningMgr::new(None, self.wifi_driv.clone());
                 log::info!("Node not provisioned previously. Starting Wi-Fi Provisioning");
                 self.prov_mgr = Some(prov_mgr);
                 self.start_wifi_provisioning()?;
             }
         };
-
+        
+        Ok(())
+    }
+    
+    #[cfg(target_os = "linux")]
+    pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
+        log::info!("Running on linux.. Skipping WiFi setup");
         Ok(())
     }
 
@@ -253,6 +260,7 @@ where
         Ok(())
     }
 
+    #[cfg(target_os = "espidf")]
     fn start_wifi_provisioning(&mut self) -> Result<(), RMakerError> {
         let prov_mgr = self.prov_mgr.as_mut().unwrap();
         prov_mgr.init(WifiProvisioningConfig {
@@ -276,12 +284,9 @@ where
 
         let node_id = self.node_id.clone();
 
-        prov_mgr.add_endpoint(
-            "cloud_user_assoc".to_string(),
-            Box::new(move |req| -> HttpResponse {
-                cloud_user_assoc_callback(req, node_id.to_owned(), mqtt_client.to_owned())
-            }),
-        );
+        prov_mgr.add_endpoint("cloud_user_assoc", move |ep_name, data| -> Vec<u8> {
+            cloud_user_assoc_callback(ep_name, data, node_id.to_owned(), mqtt_client.to_owned())
+        });
 
         prov_mgr.start().unwrap();
         Ok(())
@@ -338,8 +343,10 @@ where
 }
 
 fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
+    let print_mqtt_event = |event_name: MqttEvent| log::info!("mqtt: {event_name:?}");
+
     match event {
-        mqtt::MqttEvent::Received(msg) => {
+        MqttEvent::Received(msg) => {
             // for now we can let's assume the only place we'll receive this is from params/remote
             let received_val: HashMap<String, HashMap<String, Value>> =
                 serde_json::from_str(&String::from_utf8(msg.payload).unwrap()).unwrap();
@@ -349,19 +356,20 @@ fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
                 node.exeute_device_callback(&device, params);
             }
         }
-        _ => {
-            log::info!("mqtt event: {:?}", event)
-        }
+
+        MqttEvent::Connected | MqttEvent::Disconnected => print_mqtt_event(event),
+
+        _ => {}
     }
 }
 
 pub fn cloud_user_assoc_callback<'a>(
-    mut req: HttpRequest,
+    _ep: String,
+    data: Vec<u8>,
     node_id: String,
     mqtt_client: Option<WrappedInArcMutex<MqttClient<'a>>>,
-) -> HttpResponse {
-    let req_data = req.data();
-    let req_proto = RMakerConfigPayload::decode(&*req_data).unwrap();
+) -> Vec<u8> {
+    let req_proto = RMakerConfigPayload::decode(&*data).unwrap();
     let req_payload = req_proto.payload.unwrap();
 
     let (user_id, secret_key) = match req_payload {
@@ -402,7 +410,7 @@ pub fn cloud_user_assoc_callback<'a>(
     ));
 
     let res = res_proto.encode_to_vec();
-    HttpResponse::from_bytes(&*res)
+    res
 }
 
 pub fn prevent_drop() {

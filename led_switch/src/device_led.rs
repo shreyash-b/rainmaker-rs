@@ -14,7 +14,11 @@ pub type LedDriverType<'a> = Mutex<LedcDriver<'a>>;
 pub type LedDriverType<'a> = ();
 
 #[cfg(target_os = "espidf")]
-pub fn handle_led_update(params: HashMap<String, Value>, driver: &LedDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
+pub fn handle_led_update(
+    params: HashMap<String, Value>,
+    driver: &LedDriverType,
+    rmaker: &Mutex<Rainmaker<'static>>,
+) {
     if params.get("Power").is_some() || params.get("Brightness").is_some() {
         let mut driver = driver.lock().unwrap();
         let mut curr_data = LED_DATA.lock().unwrap();
@@ -49,7 +53,11 @@ pub fn handle_led_update(params: HashMap<String, Value>, driver: &LedDriverType,
 }
 
 #[cfg(target_os = "linux")]
-pub fn handle_led_update(_params: HashMap<String, Value>, _driver: &LedDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
+pub fn handle_led_update(
+    _params: HashMap<String, Value>,
+    _driver: &LedDriverType,
+    rmaker: &Mutex<Rainmaker<'static>>,
+) {
     report_params(_params, rmaker)
 }
 
@@ -65,9 +73,8 @@ pub fn create_led_device(name: &str) -> Device {
     led_device
 }
 
-fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'static>>){
+fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'static>>) {
     let rmaker_lock = rmaker.lock().unwrap();
     rmaker_lock.report_params("LED", params);
     drop(rmaker_lock);
-
 }

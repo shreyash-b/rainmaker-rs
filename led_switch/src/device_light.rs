@@ -4,10 +4,7 @@ use rainmaker::node::*;
 use rainmaker::Rainmaker;
 use serde_json::Value;
 #[cfg(target_os = "espidf")]
-use smart_leds::{
-    hsv::hsv2rgb,
-    RGB8,
-};
+use smart_leds::{hsv::hsv2rgb, RGB8};
 use std::sync::Mutex;
 
 #[cfg(target_os = "espidf")]
@@ -16,7 +13,7 @@ use smart_leds_trait::SmartLedsWrite;
 #[cfg(target_os = "espidf")]
 use ws2812_esp32_rmt_driver::{driver::color::LedPixelColorGrb24, LedPixelEsp32Rmt};
 
-struct Hsv{
+struct Hsv {
     hue: u16,
     sat: u8,
     val: u8,
@@ -38,7 +35,11 @@ pub type LightDriverType<'a> = Mutex<LedPixelEsp32Rmt<'a, RGB8, LedPixelColorGrb
 pub type LightDriverType = ();
 
 #[cfg(target_os = "espidf")]
-pub fn handle_light_update(params: HashMap<String, Value>, driver: &LightDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
+pub fn handle_light_update(
+    params: HashMap<String, Value>,
+    driver: &LightDriverType,
+    rmaker: &Mutex<Rainmaker<'static>>,
+) {
     if params.contains_key("Power")
         || params.contains_key("Hue")
         || params.contains_key("Saturation")
@@ -89,8 +90,9 @@ pub fn handle_light_update(params: HashMap<String, Value>, driver: &LightDriverT
             None => {}
         }
 
-        if curr_data.0 == true { // power
-            let curr_hsv = smart_leds::hsv::Hsv{
+        if curr_data.0 == true {
+            // power
+            let curr_hsv = smart_leds::hsv::Hsv {
                 hue: map_to_255(curr_data.1.hue, 360.0),
                 sat: map_to_255(curr_data.1.sat.into(), 100.0),
                 val: map_to_255(curr_data.1.val.into(), 100.0),
@@ -107,7 +109,11 @@ pub fn handle_light_update(params: HashMap<String, Value>, driver: &LightDriverT
 }
 
 #[cfg(target_os = "linux")]
-pub fn handle_light_update(_params: HashMap<String, Value>, _driver: &LightDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
+pub fn handle_light_update(
+    _params: HashMap<String, Value>,
+    _driver: &LightDriverType,
+    rmaker: &Mutex<Rainmaker<'static>>,
+) {
     report_params(_params, rmaker);
 }
 
@@ -127,16 +133,15 @@ pub fn create_light_device(name: &str) -> Device {
     light_device
 }
 
-fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'static>>){
+fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'static>>) {
     let rmaker_lock = rmaker.lock().unwrap();
     rmaker_lock.report_params("Light", params);
     drop(rmaker_lock);
-
 }
 
-// fn map_to_255(val: u16, n: f32) -> u8{
-//     let val_float = val as f32;
-//     let val = val_float * 255.0 / n;
+fn map_to_255(val: u16, n: f32) -> u8 {
+    let val_float = val as f32;
+    let val = val_float * 255.0 / n;
 
-//     val as u8
-// }
+    val as u8
+}

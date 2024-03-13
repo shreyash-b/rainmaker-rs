@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    net::{IpAddr, Ipv4Addr},
-};
+use std::net::{IpAddr, Ipv4Addr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HttpMethod {
@@ -68,9 +65,4 @@ impl Default for HttpConfiguration {
     }
 }
 
-pub struct HttpServer<T> {
-    pub(crate) server: T,
-    #[allow(dead_code)]
-    pub(crate) listeners:
-        Option<HashMap<String, HashMap<HttpMethod, Box<dyn Fn(HttpRequest) -> HttpResponse + Send + Sync>>>>,
-}
+pub struct HttpServer<T>(pub(crate) T);

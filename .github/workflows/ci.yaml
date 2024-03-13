@@ -34,9 +34,13 @@ jobs:
     # for now, only test on esp toolchain for all targets(temporarily)
 
     # - if: matrix.target != 'riscv32imc-esp-espidf'  && matrix.toolchain == 'stable' # run xtensa targets only on stable toolchain
-    - uses: esp-rs/xtensa-toolchain@v1.5.1
+    - name: Setup | Install ESP rust toolchain
+      uses: esp-rs/xtensa-toolchain@v1.5.1
       with:
         default: true
+
+    - name: Setup | Install Protoc
+      uses: arduino/setup-protoc@v3
 
     - name: Build | Clippy
       env:

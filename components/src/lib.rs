@@ -1,4 +1,5 @@
 #![feature(map_try_insert)] // used in http_linux.rs
+#![feature(trait_alias)] // http_linux.rs
 
 pub mod error;
 pub mod http;

@@ -17,6 +17,7 @@ mod http_linux;
 // pub use http_linux::*;
 
 #[cfg(target_os = "linux")]
-pub type HttpServer<'a> = base::HttpServer<tiny_http::Server>;
+#[allow(private_interfaces)] // HttpServerLinux need not be visible outside
+pub type HttpServer<'a> = base::HttpServer<http_linux::HttpServerLinux>;
 
 // todo: concurrency on linux

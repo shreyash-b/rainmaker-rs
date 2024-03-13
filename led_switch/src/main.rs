@@ -23,12 +23,20 @@ use rainmaker::{
 };
 use serde_json::Value;
 
-fn led_cb(params: HashMap<String, /* ParamDataType */ Value>, driver: &LedDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
+fn led_cb(
+    params: HashMap<String, /* ParamDataType */ Value>,
+    driver: &LedDriverType,
+    rmaker: &Mutex<Rainmaker<'static>>,
+) {
     log::info!("led: {:?}", params);
     device_led::handle_led_update(params, driver, rmaker)
 }
 
-fn light_cb(params: HashMap<String, /* ParamDataType */ Value>, driver: &LightDriverType, rmaker: &Mutex<Rainmaker<'static>>) {
+fn light_cb(
+    params: HashMap<String, /* ParamDataType */ Value>,
+    driver: &LightDriverType,
+    rmaker: &Mutex<Rainmaker<'static>>,
+) {
     log::info!("light: {:?}", params);
     device_light::handle_light_update(params, driver, rmaker);
 }
@@ -51,7 +59,7 @@ fn main() -> Result<(), RMakerError> {
     let led_driver: &device_led::LedDriverType;
     let light_driver: &device_light::LightDriverType;
 
-    #[cfg(target_os="espidf")]
+    #[cfg(target_os = "espidf")]
     {
         let led_driver_local = LedcDriver::new(
             peripherals.ledc.channel0,
@@ -63,11 +71,9 @@ fn main() -> Result<(), RMakerError> {
             peripherals.pins.gpio10,
         )
         .unwrap();
-    
-        let light_driver_local = Ws2812Esp32Rmt::new(
-            peripherals.rmt.channel0,
-            peripherals.pins.gpio8)
-            .unwrap();
+
+        let light_driver_local =
+            Ws2812Esp32Rmt::new(peripherals.rmt.channel0, peripherals.pins.gpio8).unwrap();
 
         led_driver = Box::leak(Box::new(Mutex::new(led_driver_local)));
         light_driver = Box::leak(Box::new(Mutex::new(light_driver_local)));
@@ -80,11 +86,13 @@ fn main() -> Result<(), RMakerError> {
     }
 
     let mut light_device = create_light_device("Light");
-    
+
     let rmaker_mutex = Box::leak(Box::new(Mutex::new(Rainmaker::new()?))); // needed just to keep compiler happy
     let mut rmaker = rmaker_mutex.lock().unwrap();
-    
-    light_device.register_callback(Box::new(|params| light_cb(params, light_driver, rmaker_mutex)));
+
+    light_device.register_callback(Box::new(|params| {
+        light_cb(params, light_driver, rmaker_mutex)
+    }));
 
     rmaker.init();
 
