@@ -6,3 +6,11 @@ license = "GPL-3.0-only"
 [profile.dev]
 opt-level = "z"
 debug = true
+
+# [profile.release]
+# opt-level = "z"
+# debug = true
+# lto = true
+# panic = "abort"
+# strip = true
+# codegen-units = 1

@@ -7,6 +7,7 @@ fn main() {
                 "proto/session.proto",
                 "proto/wifi_config.proto",
                 "proto/wifi_scan.proto",
+                "proto/local_ctrl.proto"
             ],
             &["proto/"],
         )

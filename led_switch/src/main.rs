@@ -102,6 +102,8 @@ fn main() -> Result<(), RMakerError> {
     rmaker.register_node(node);
     rmaker.init_wifi()?;
     rmaker.start()?;
+    rmaker.local_ctrl_init();
+    println!("rmaker done");
     drop(rmaker); // drop the lock so that callbacks can use it
     rainmaker::prevent_drop();
 

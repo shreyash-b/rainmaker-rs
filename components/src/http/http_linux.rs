@@ -69,7 +69,7 @@ impl<'a> HttpServer<tiny_http::Server> {
             let http_request = HttpRequest::from(&mut req);
             let response = match path_callbacks {
                 Some(callbacks) => match callbacks.get(&http_request.method()) {
-                    Some(callback) => callback(http_request),
+                    Some(callback) => {log::info!("http request received on {:?}", req.url()); callback(http_request)},
                     None => HttpResponse::from_bytes("invalid method"),
                 },
                 None => {

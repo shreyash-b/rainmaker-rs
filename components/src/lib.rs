@@ -6,6 +6,7 @@ pub mod mqtt;
 pub mod persistent_storage;
 pub mod protocomm;
 pub mod wifi;
+pub mod local_ctrl;
 
 fn hello(name: &str) {
     log::info!("hello from {}", name);

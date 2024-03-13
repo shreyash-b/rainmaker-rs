@@ -4,14 +4,15 @@ linker = "ldproxy"
 rustflags = ["--cfg", "espidf_time64", "-C", "default-linker-libraries"]
 
 [target.xtensa-esp32-espidf]
-runner = "espflash flash --partition-table partitions.csv --monitor"
+runner = "espflash flash --partition-table partitions.csv --monitor -b 1115200"
 linker = "ldproxy"
 rustflags = ["--cfg", "espidf_time64"]
 
 [build]
-target = ["riscv32imc-esp-espidf", "x86_64-unknown-linux-gnu"]
+# target = ["riscv32imc-esp-espidf", "x86_64-unknown-linux-gnu"]
 # target = "riscv32imc-esp-espidf"
-# target = "x86_64-unknown-linux-gnu"
+target = "x86_64-unknown-linux-gnu"
+# target = "xtensa-esp32-espidf"
 
 [alias]
 run_linux = "run --target x86_64-unknown-linux-gnu"

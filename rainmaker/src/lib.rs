@@ -3,6 +3,7 @@ include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 pub mod error;
 pub mod node;
 pub mod wifi_prov;
+pub mod local_ctrl_service;
 
 use components::{
     http::{HttpConfiguration, HttpServer},
@@ -329,6 +330,10 @@ where
                 )
                 .unwrap();
         }
+    }
+
+    pub fn local_ctrl_init(&mut self) {
+        local_ctrl_service::local_ctrl_service().unwrap();
     }
 }
 
