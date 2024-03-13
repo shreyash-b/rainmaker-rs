@@ -2,6 +2,7 @@ include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 
 pub mod error;
 pub mod node;
+pub(crate) mod utils;
 pub mod wifi_prov;
 
 use components::{
@@ -11,6 +12,7 @@ use components::{
 };
 use error::RMakerError;
 use node::Node;
+use prost::Message;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -19,13 +21,11 @@ use std::{
     time::Duration,
 };
 
-use prost::Message;
-
 #[cfg(target_os = "espidf")]
 use wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
 
 #[cfg(target_os = "espidf")]
-use components::wifi::WifiClientConfig;
+use components::{protocomm::ProtocommSecurity, wifi::WifiClientConfig};
 
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
@@ -167,9 +167,8 @@ where
 
     #[cfg(target_os = "espidf")]
     pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
-        
         let provisioned_status = WifiProvisioningMgr::get_provisioned_creds();
-        
+
         match provisioned_status {
             Some((ssid, password)) => {
                 log::info!(
@@ -177,13 +176,13 @@ where
                     ssid,
                     password
                 );
-                
+
                 let wifi_client_config = WifiClientConfig {
                     ssid,
                     password,
                     ..Default::default()
                 };
-                
+
                 let mut wifi = self.wifi_driv.lock().unwrap();
                 wifi.set_client_config(wifi_client_config).unwrap();
                 wifi.start().unwrap();
@@ -192,16 +191,22 @@ where
             }
             None => {
                 self.mqtt_init()?;
-                let prov_mgr = WifiProvisioningMgr::new(None, self.wifi_driv.clone());
+                let prov_config = WifiProvisioningConfig {
+                    device_name: "ABC12".into(),
+                    scheme: wifi_prov::WifiProvScheme::SoftAP,
+                    security: ProtocommSecurity::new_from_pop("0000"),
+                };
+
+                let prov_mgr = WifiProvisioningMgr::new(self.wifi_driv.clone(), prov_config);
                 log::info!("Node not provisioned previously. Starting Wi-Fi Provisioning");
                 self.prov_mgr = Some(prov_mgr);
                 self.start_wifi_provisioning()?;
             }
         };
-        
+
         Ok(())
     }
-    
+
     #[cfg(target_os = "linux")]
     pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
         log::info!("Running on linux.. Skipping WiFi setup");
@@ -262,10 +267,6 @@ where
     #[cfg(target_os = "espidf")]
     fn start_wifi_provisioning(&mut self) -> Result<(), RMakerError> {
         let prov_mgr = self.prov_mgr.as_mut().unwrap();
-        prov_mgr.init(WifiProvisioningConfig {
-            device_name: "ABC12".to_string(),
-            scheme: wifi_prov::WifiProvScheme::SoftAP,
-        });
 
         // while we figure out the issue about static lifetime on esp
         // #[cfg(target_os="linux")]

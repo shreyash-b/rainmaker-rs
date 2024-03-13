@@ -8,6 +8,8 @@ pub mod persistent_storage;
 pub mod protocomm;
 pub mod wifi;
 
+pub(crate) mod utils;
+
 fn hello(name: &str) {
     log::info!("hello from {}", name);
 }

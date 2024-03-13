@@ -1,17 +1,17 @@
+use components::http::HttpConfiguration;
 use serde_json::json;
 use std::marker::PhantomData;
-use std::sync::Arc;
-use std::sync::Mutex;
 
 use components::persistent_storage::Nvs;
 use components::persistent_storage::NvsPartition;
-use components::protocomm::transports::httpd::TransportHttpd;
 use components::protocomm::*;
 use components::wifi::*;
 
 use crate::error::RMakerError;
+use crate::utils::{wrap_in_arc_mutex, WrappedInArcMutex};
 
-type WrappedInArcMutex<T> = Arc<Mutex<T>>;
+const PROV_MGR_VER: &str = "v1.1";
+const LOGGER_TAH: &str = "wifi_prov";
 
 #[derive(Default)]
 pub enum WifiProvScheme {
@@ -23,52 +23,52 @@ pub enum WifiProvScheme {
 pub struct WifiProvisioningConfig {
     pub device_name: String,
     pub scheme: WifiProvScheme,
+    pub security: ProtocommSecurity
 }
 
 pub struct WifiProvisioningMgr<'a> {
     protocomm: WrappedInArcMutex<Protocomm<'a>>,
     wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
-    device_name: Option<String>,
+    device_name: String,
     _phantom: PhantomData<&'a ()>, // for compiler to not complain about lifetime parameter
 }
 
 impl<'a> WifiProvisioningMgr<'a> {
-    pub fn new(
-        protocomm: Option<WrappedInArcMutex<Protocomm<'a>>>,
-        wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
-    ) -> Self {
-        let protocomm_new: WrappedInArcMutex<Protocomm>;
-        if protocomm.is_none() {
-            protocomm_new = Arc::new(Mutex::new(Protocomm::new(
-                ProtocomTransport::Httpd(TransportHttpd::new()),
-                ProtocommSecurity::Sec0,
-            )));
-        } else {
-            protocomm_new = protocomm.unwrap();
-        }
-        Self {
+    pub fn new(wifi_client: WrappedInArcMutex<WifiMgr<'static>>, config: WifiProvisioningConfig) -> Self {
+        let protocomm_config = ProtocommConfig{
+            transport: ProtocomTransportConfig::Httpd(HttpConfiguration::default()),
+            security: config.security
+        };
+
+        let protocomm_new = wrap_in_arc_mutex(Protocomm::new(protocomm_config));
+
+        let mut prov_mgr = Self {
             protocomm: protocomm_new,
             wifi_client,
-            device_name: None,
+            device_name: config.device_name,
             _phantom: PhantomData,
-        }
+        };
+        prov_mgr.init();
+
+        prov_mgr
+
+        
     }
 
-    pub fn init(&mut self, config: WifiProvisioningConfig) {
-        self.init_ap(config.device_name.clone());
-        self.device_name = Some(config.device_name);
+    pub fn init(&mut self) {
+        let device_name = &self.device_name;
+        self.init_ap(device_name);
         self.register_listeners();
     }
 
     pub fn start(&self) -> Result<(), RMakerError> {
         let mut wifi_driv = self.wifi_client.lock().unwrap();
+        log::debug!(target: LOGGER_TAH, "starting wifi in SoftAP mode");
         wifi_driv.set_client_config(WifiClientConfig::default())?;
         wifi_driv.start()?;
         drop(wifi_driv);
 
-        let pc = self.protocomm.lock().unwrap();
         self.print_prov_url();
-        pc.start();
 
         Ok(())
     }
@@ -77,7 +77,6 @@ impl<'a> WifiProvisioningMgr<'a> {
     where
         T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
     {
-        // todo: look into how idf-c does it and make it transport independent
         let pc = self.protocomm.lock().unwrap();
 
         pc.register_endpoint(endpoint, callback).unwrap();
@@ -96,16 +95,29 @@ impl<'a> WifiProvisioningMgr<'a> {
         }
     }
 
+    fn get_version_info(&self) -> serde_json::Value {
+
+        let ver_info = json!({
+            "prov": {
+                "ver": PROV_MGR_VER,
+                "sec_ver": 1,
+                "cap": ["wifi_scan"]
+            }
+        });
+        
+        ver_info
+    }
+
     fn register_listeners(&self) {
-        log::info!("adding provisioning listeners");
+        log::debug!(target: LOGGER_TAH, "adding provisioning listeners");
         let wifi_driv_prov_config = self.wifi_client.clone();
         let wifi_driv_prov_scan = self.wifi_client.clone();
 
         let pc = self.protocomm.lock().unwrap();
         pc.set_security_endpoint("prov-session").unwrap(); // hardcoded sec params for sec0
 
-        pc.register_endpoint("proto-ver", proto_ver_callback)
-            .unwrap();
+        let version_str = self.get_version_info();
+        pc.set_version_endpoint("proto-ver", version_str.to_string()).unwrap();
 
         pc.register_endpoint("prov-config", move |ep, data| -> Vec<u8> {
             prov_config_callback(ep, data, wifi_driv_prov_config.to_owned())
@@ -118,7 +130,7 @@ impl<'a> WifiProvisioningMgr<'a> {
         .unwrap();
     }
 
-    fn init_ap(&self, device_name: String) {
+    fn init_ap(&self, device_name: &String) {
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         let apconf = WifiApConfig {
             ssid: format!("PROV_{}", device_name),
@@ -128,30 +140,24 @@ impl<'a> WifiProvisioningMgr<'a> {
         wifi_driv.set_ap_config(apconf).unwrap();
     }
 
-    fn print_prov_url(&self){
-        let device_name = self.device_name.as_ref().unwrap();
+    fn print_prov_url(&self) {
+        let device_name = &self.device_name;
         let data_json = json!({
             "ver":"v1",
             "name": format!("PROV_{device_name}"),
             "transport":"softap" // becoz no ble
         });
 
-        let qr_url = format!("https://espressif.github.io/esp-jumpstart/qrcode.html?data={}", data_json.to_string());
+        let qr_url = format!(
+            "https://espressif.github.io/esp-jumpstart/qrcode.html?data={}",
+            data_json.to_string()
+        );
 
-        log::info!("Provisioning started. Visit following url to provision node: {}", qr_url);
+        log::info!(
+            "Provisioning started. Visit following url to provision node: {}",
+            qr_url
+        );
     }
-}
-
-fn proto_ver_callback(_ep: String, _inp_data: Vec<u8>) -> Vec<u8> {
-    let response = json!({
-     "prov": {
-        "ver": "v1.1",
-        "sec_ver" : 0,
-        "cap": ["wifi_scan", "no_pop", "no_sec"]
-     }
-    });
-
-    Vec::from(response.to_string())
 }
 
 fn prov_config_callback(
@@ -159,7 +165,6 @@ fn prov_config_callback(
     data: Vec<u8>,
     wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
 ) -> Vec<u8> {
-    log::info!("prov_config called");
     let req_proto = WiFiConfigPayload::decode(&*data).unwrap();
 
     let msg_type = req_proto.msg();
@@ -240,7 +245,6 @@ fn handle_cmd_apply_config() -> Vec<u8> {
         },
     ));
 
-    log::info!("let's say that wifi config is applied");
     resp_msg.encode_to_vec()
 }
 
@@ -274,7 +278,7 @@ fn handle_cmd_get_status(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
 }
 
 fn handle_cmd_scan_start() -> Vec<u8> {
-    log::info!("starting wifi scan");
+    log::info!("Starting wifi scan");
     let mut resp_msg = WiFiScanPayload::default();
     resp_msg.msg = WiFiScanMsgType::TypeRespScanStart.into();
     resp_msg.status = Status::Success.into();
@@ -285,7 +289,6 @@ fn handle_cmd_scan_start() -> Vec<u8> {
 }
 
 fn handle_cmd_scan_status() -> Vec<u8> {
-    log::info!("sending wifi scan status");
     let mut resp_msg = WiFiScanPayload::default();
     resp_msg.msg = WiFiScanMsgType::TypeRespScanStatus.into();
     resp_msg.status = Status::Success.into();
@@ -301,7 +304,7 @@ fn handle_cmd_scan_status() -> Vec<u8> {
 }
 
 fn handle_cmd_scan_result(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
-    log::info!("sending scan result");
+    log::info!("Sending scan results");
 
     let mut resp_msg = WiFiScanPayload::default();
     resp_msg.msg = WiFiScanMsgType::TypeRespScanResult.into();

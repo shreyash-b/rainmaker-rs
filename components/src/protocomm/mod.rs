@@ -2,51 +2,63 @@ mod proto;
 mod security;
 pub mod transports;
 
-use crate::error::Error;
+use crate::{error::Error, http::HttpConfiguration};
 pub use prost::Message;
-pub use proto::*; // temporarily
-use std::marker::PhantomData;
+pub use proto::*;
+use std::collections::HashMap;
 use transports::httpd::TransportHttpd;
 
 use transports::TransportTrait;
 
-use self::security::{sec0, SecurityTrait};
+pub use self::security::ProtocommSecurity;
+use self::security::SecurityTrait;
+use crate::utils::{wrap_in_arc_mutex, WrappedInArcMutex};
 
-pub enum ProtocomTransport<'a> {
-    Httpd(TransportHttpd<'a>),
-    Pd(PhantomData<&'a ()>),
+const LOGGER_TAG: &str = "protocomm";
+
+pub enum ProtocomTransportConfig {
+    Httpd(HttpConfiguration),
 }
 
-impl ProtocomTransport<'_> {
-    fn start(&self) {
-        match self {
-            ProtocomTransport::Httpd(_) => {},
-            ProtocomTransport::Pd(_) => todo!(),
-        }
-    }
+pub struct ProtocommConfig {
+    pub security: ProtocommSecurity,
+    pub transport: ProtocomTransportConfig
 }
 
-pub struct ProtocommConfig<'a> {
-    _security: ProtocommSecurity,
-    _transport: ProtocomTransport<'a>,
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) enum EndpointType {
+    Version,
+    Security,
+    #[default]
+    Other,
+}
+
+
+#[derive(Default)]
+pub struct CallbackData {
+    sec: ProtocommSecurity,
+    ep_ype: HashMap<String, EndpointType>,
 }
 
 pub struct Protocomm<'a> {
-    transport: ProtocomTransport<'a>,
-    security: ProtocommSecurity,
+    transport: TransportHttpd<'a>, // change this to accepting trait after implementing BLE transport
+    cb_data: WrappedInArcMutex<CallbackData>,
 }
 
-#[derive(Debug)]
-pub enum ProtocommSecurity {
-    Sec0,
-}
-
-// type EndpointCallback = dyn Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static;
 impl<'a> Protocomm<'a> {
-    pub fn new(transport: ProtocomTransport<'a>, security: ProtocommSecurity) -> Self {
+    pub fn new(config: ProtocommConfig) -> Self {
+        let cb_data = wrap_in_arc_mutex(CallbackData {
+            sec: config.security,
+            ..Default::default()
+        });
+
+        let mut httpd = match config.transport {
+            ProtocomTransportConfig::Httpd(http_config) => TransportHttpd::new(http_config),
+        };
+        httpd.register_cb_data(cb_data.clone());
         Self {
-            transport,
-            security,
+            transport: httpd,
+            cb_data,
         }
     }
 
@@ -54,34 +66,68 @@ impl<'a> Protocomm<'a> {
     where
         T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
     {
-        match &self.transport {
-            ProtocomTransport::Httpd(t) => {
-                t.add_endpoint(ep_name, callback);
-            }
-            _ => return Ok(()),
-        }
-
-        Ok(())
+        self.register_endpoint_internal(ep_name, callback, EndpointType::Other)
     }
 
     pub fn set_security_endpoint(&self, ep_name: &str) -> Result<(), Error> {
-        let sec_endpoint = match self.security {
-            ProtocommSecurity::Sec0 => sec0::Sec0::security_handler,
-        };
-
-        self.register_endpoint(ep_name, sec_endpoint)?;
-        Ok(())
+        // supply dummy callback here, appropriate callback is called
+        self.register_endpoint_internal(ep_name, |_ep, _data| vec![], EndpointType::Security)
     }
 
-    pub fn start(&self) {
-        self.transport.start();
+    pub fn set_version_endpoint(&self, ep_name: &str, version_str: String) -> Result<(), Error> {
+        self.register_endpoint_internal(
+            ep_name,
+            move |_ep, _data| version_str.to_owned().into(),
+            EndpointType::Version,
+        )
+    }
+
+    fn register_endpoint_internal<T>(
+        &self,
+        ep_name: &str,
+        callback: T,
+        ep_type: EndpointType,
+    ) -> Result<(), Error>
+    where
+        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
+    {
+        let mut ep_data = self.cb_data.as_ref().lock().unwrap();
+        ep_data.ep_ype.insert(ep_name.to_string(), ep_type);
+
+        self.transport.add_endpoint(ep_name, callback);
+        log::debug!(target: LOGGER_TAG, "registered handler for {ep_name}");
+
+        Ok(())
     }
 }
 
-pub(crate) fn protocomm_req_handler<T>(ep: String, data: Vec<u8>, cb: T) -> Vec<u8>
+pub(crate) fn protocomm_req_handler<T>(
+    ep: String,
+    data: Vec<u8>,
+    cb: T,
+    cb_data: WrappedInArcMutex<CallbackData>,
+) -> Vec<u8>
 where
     T: Fn(String, Vec<u8>) -> Vec<u8>,
 {
-    // handle encryption, decryption after implementing Sec1/Sec2
-    cb(ep, data)
+    let mut cb_data = cb_data.lock().unwrap();
+    let curr_ep_type = cb_data.ep_ype.get(&ep).unwrap();
+    
+    match curr_ep_type {
+        EndpointType::Version => cb(ep, data),
+        EndpointType::Security => {
+            let sec = &mut cb_data.sec;
+            sec.security_handler(ep, data)
+        }
+        EndpointType::Other => {
+            let sec = &mut cb_data.sec;
+            let mut data_mut = data.clone();
+
+            sec.decrypt(&mut data_mut);
+            let mut res = cb(ep, data_mut);
+            sec.encrypt(&mut res);
+
+            res
+        }
+    }
 }
