@@ -25,7 +25,7 @@ fn debug_u8_arr_as_hex(name: &str, inp: &[u8]){
 
 #[derive(Default)]
 pub struct Sec1{
-    pub pop: Vec<u8>,
+    pub pop: Option<String>,
     pub(crate) sec_data: Sec1Data
 }
 
@@ -42,29 +42,34 @@ impl Sec1{
         let client_pub_key = in_proto.client_pubkey;
         let device_ecdh_keypair = KeyPair::generate();
         let client_pub = PublicKey::from_slice(&client_pub_key).unwrap();
-        let mut shared_key = client_pub.dh(&device_ecdh_keypair.sk).unwrap();
-
-        let key_len = shared_key.len();
-        let shared_key_bytes = shared_key.as_mut();
-
+        
+        let mut shared_secret = client_pub.dh(&device_ecdh_keypair.sk).unwrap();
+        let key_len = shared_secret.len();
 
         let mut device_random = [0; 16];
         rand::thread_rng().fill_bytes(&mut device_random);
 
         debug_u8_arr_as_hex("Device random", &device_random);
-        debug_u8_arr_as_hex("Shared key(ECDH)", &shared_key_bytes);
+        debug_u8_arr_as_hex("Shared key(ECDH)", shared_secret.as_ref());
+        
+        // XOR SHA256 Hash of PoP with shared secret if application
+        match &self.pop{
+            None => {},
+            Some(pop_value) => {
+                let pop_hash = Sha256::digest(&pop_value);
+    
+                for i in 0..key_len{
+                    shared_secret[i] ^= pop_hash[i];
+                }
+    
+                debug_u8_arr_as_hex("PoP", pop_value.as_bytes());
+                debug_u8_arr_as_hex("PoP(SHA256)", &pop_hash);
+                debug_u8_arr_as_hex("Shared key(after XOR with PoP)", shared_secret.as_ref());
 
-        let pop = &self.pop;
-        let pop_hash = Sha256::digest(pop);
-        for i in 0..key_len{
-            shared_key_bytes[i] ^= pop_hash[i];
+            }
         }
         
-        debug_u8_arr_as_hex("PoP", &pop);
-        debug_u8_arr_as_hex("PoP(SHA256)", &pop_hash);
-        debug_u8_arr_as_hex("Shared key(after XOR with PoP)", &shared_key_bytes);
-
-        let cipher = AesCtr::new(shared_key.as_ref().into(), device_random.as_ref().into());
+        let cipher = AesCtr::new(shared_secret.as_ref().into(), device_random.as_ref().into());
         
         let mut out_data = SessionResp0::default();
         out_data.status = Status::Success.into();

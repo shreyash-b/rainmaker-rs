@@ -25,7 +25,7 @@ use std::{
 use wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
 
 #[cfg(any(target_os = "espidf", feature="linux_wifi"))]
-use components::wifi::WifiClientConfig;
+use components::{wifi::WifiClientConfig, protocomm::ProtocommSecurity};
 
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
@@ -194,7 +194,7 @@ where
                 let prov_config = WifiProvisioningConfig {
                     device_name: "ABC12".into(),
                     scheme: wifi_prov::WifiProvScheme::SoftAP,
-                    security: ProtocommSecurity::new_from_pop("0000"),
+                    security: ProtocommSecurity::new_sec1(Some("0000".to_string())),
                 };
 
                 let prov_mgr = WifiProvisioningMgr::new(self.wifi_driv.clone(), prov_config);

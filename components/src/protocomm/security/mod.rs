@@ -3,9 +3,7 @@ pub(crate) mod sec0;
 pub(crate) mod sec1;
 pub(crate) trait SecurityTrait: Default {
     fn security_handler(&mut self, ep: String, data: Vec<u8>) -> Vec<u8>;
-    // fn encrypt(indata: Vec<u8>, sec_params: Self::SecParams) -> Vec<u8>;
     fn encrypt(&mut self, indata: &mut [u8]); // encryption in-place
-    // fn decrypt(indata: Vec<u8>, sec_params: Self::SecParams) -> Vec<u8>;
     fn decrypt(&mut self, indata: &mut [u8]); // decryption in-place
 }
 
@@ -22,9 +20,9 @@ impl Default for ProtocommSecurity {
 }
 
 impl ProtocommSecurity {
-    pub fn new_from_pop(pop: &str) -> Self {
+    pub fn new_sec1(pop: Option<String>) -> Self {
         Self::Sec1(sec1::Sec1 {
-            pop: pop.into(),
+            pop,
             ..Default::default()
         })
     }
