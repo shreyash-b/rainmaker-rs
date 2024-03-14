@@ -139,6 +139,7 @@ fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'stati
     drop(rmaker_lock);
 }
 
+#[cfg(target_os="espidf")]
 fn map_to_255(val: u16, n: f32) -> u8 {
     let val_float = val as f32;
     let val = val_float * 255.0 / n;
