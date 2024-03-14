@@ -6,6 +6,12 @@ license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+# below feature is used for testing purposes, wifi connection isn't implemented on linux
+# it can be used for user mapping in case you don't have an esp
+# however you'll explicitly need to create a accesspoint with your pc having ip address 192.168.4.1 and use security level 0 with it
+linux_wifi = []
+
 [dependencies]
 anyhow = { version = "1.0.79", default-features = false }
 components = { path = "../components" }

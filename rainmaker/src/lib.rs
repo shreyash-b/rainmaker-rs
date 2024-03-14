@@ -21,11 +21,11 @@ use std::{
     time::Duration,
 };
 
-#[cfg(target_os = "espidf")]
+#[cfg(any(target_os = "espidf", feature="linux_wifi"))]
 use wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
 
-#[cfg(target_os = "espidf")]
-use components::{protocomm::ProtocommSecurity, wifi::WifiClientConfig};
+#[cfg(any(target_os = "espidf", feature="linux_wifi"))]
+use components::wifi::WifiClientConfig;
 
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
@@ -165,7 +165,7 @@ where
         self.node = Some(node.into());
     }
 
-    #[cfg(target_os = "espidf")]
+    #[cfg(any(target_os = "espidf", feature="linux_wifi"))]
     pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
         let provisioned_status = WifiProvisioningMgr::get_provisioned_creds();
 
@@ -206,8 +206,8 @@ where
 
         Ok(())
     }
-
-    #[cfg(target_os = "linux")]
+    
+    #[cfg(all(target_os = "linux", not(feature="linux_wifi")))]
     pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
         log::info!("Running on linux.. Skipping WiFi setup");
         Ok(())
@@ -264,7 +264,7 @@ where
         Ok(())
     }
 
-    #[cfg(target_os = "espidf")]
+    #[cfg(any(target_os = "espidf", feature="linux_wifi"))]
     fn start_wifi_provisioning(&mut self) -> Result<(), RMakerError> {
         let prov_mgr = self.prov_mgr.as_mut().unwrap();
 
