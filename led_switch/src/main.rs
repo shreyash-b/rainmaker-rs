@@ -2,6 +2,7 @@
 
 mod device_led;
 mod device_light;
+use components::protocomm::ProtocommSecurity;
 use device_led::*;
 use device_light::*;
 
@@ -108,7 +109,7 @@ fn main() -> Result<(), RMakerError> {
     node.add_device(light_device);
     node.add_device(led_device);
     rmaker.register_node(node);
-    rmaker.init_wifi()?;
+    rmaker.init_wifi(ProtocommSecurity::new_sec1(Some("abcd1234".to_string())))?;  // hardcoded
     rmaker.start()?;
     drop(rmaker); // drop the lock so that callbacks can use it
     rainmaker::prevent_drop();

@@ -8,6 +8,7 @@ pub mod wifi_prov;
 use components::{
     mqtt::{self, MqttClient, MqttConfiguration, MqttEvent, TLSconfiguration},
     persistent_storage::{Nvs, NvsPartition},
+    protocomm::ProtocommSecurity,
     wifi::WifiMgr,
 };
 use error::RMakerError;
@@ -21,11 +22,11 @@ use std::{
     time::Duration,
 };
 
-#[cfg(any(target_os = "espidf", feature="linux_wifi"))]
+#[cfg(any(target_os = "espidf", feature = "linux_wifi"))]
 use wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
 
-#[cfg(any(target_os = "espidf", feature="linux_wifi"))]
-use components::{wifi::WifiClientConfig, protocomm::ProtocommSecurity};
+#[cfg(any(target_os = "espidf", feature = "linux_wifi"))]
+use components::wifi::WifiClientConfig;
 
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
@@ -165,8 +166,8 @@ where
         self.node = Some(node.into());
     }
 
-    #[cfg(any(target_os = "espidf", feature="linux_wifi"))]
-    pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
+    #[cfg(any(target_os = "espidf", feature = "linux_wifi"))]
+    pub fn init_wifi(&mut self, sec_config: ProtocommSecurity) -> Result<(), RMakerError> {
         let provisioned_status = WifiProvisioningMgr::get_provisioned_creds();
 
         match provisioned_status {
@@ -194,7 +195,7 @@ where
                 let prov_config = WifiProvisioningConfig {
                     device_name: "ABC12".into(),
                     scheme: wifi_prov::WifiProvScheme::SoftAP,
-                    security: ProtocommSecurity::new_sec1(Some("0000".to_string())),
+                    security: sec_config,
                 };
 
                 let prov_mgr = WifiProvisioningMgr::new(self.wifi_driv.clone(), prov_config);
@@ -206,9 +207,9 @@ where
 
         Ok(())
     }
-    
-    #[cfg(all(target_os = "linux", not(feature="linux_wifi")))]
-    pub fn init_wifi(&mut self) -> Result<(), RMakerError> {
+
+    #[cfg(all(target_os = "linux", not(feature = "linux_wifi")))]
+    pub fn init_wifi(&mut self, _sec: ProtocommSecurity) -> Result<(), RMakerError> {
         log::info!("Running on linux.. Skipping WiFi setup");
         Ok(())
     }
@@ -264,7 +265,7 @@ where
         Ok(())
     }
 
-    #[cfg(any(target_os = "espidf", feature="linux_wifi"))]
+    #[cfg(any(target_os = "espidf", feature = "linux_wifi"))]
     fn start_wifi_provisioning(&mut self) -> Result<(), RMakerError> {
         let prov_mgr = self.prov_mgr.as_mut().unwrap();
 
