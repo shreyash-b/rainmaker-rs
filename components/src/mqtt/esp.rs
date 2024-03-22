@@ -39,17 +39,17 @@ impl<'a> MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'a>> {
         tls_certs: &'static TLSconfiguration,
         callback: Box<dyn Fn(MqttEvent) + Send + Sync>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let client_cert = std::ffi::CStr::from_bytes_with_nul(&tls_certs.client_cert).unwrap();
-        let private_key = std::ffi::CStr::from_bytes_with_nul(&tls_certs.private_key).unwrap();
-        let server_cert = std::ffi::CStr::from_bytes_with_nul(&tls_certs.server_cert).unwrap();
+        let client_cert = std::ffi::CStr::from_bytes_with_nul(tls_certs.client_cert).unwrap();
+        let private_key = std::ffi::CStr::from_bytes_with_nul(tls_certs.private_key).unwrap();
+        let server_cert = std::ffi::CStr::from_bytes_with_nul(tls_certs.server_cert).unwrap();
 
-        let mut options = esp_idf_svc::mqtt::client::MqttClientConfiguration::default();
-
-        options.client_id = Some(config.clientid);
-
-        options.server_certificate = Some(esp_idf_svc::tls::X509::pem(server_cert));
-        options.client_certificate = Some(esp_idf_svc::tls::X509::pem(client_cert));
-        options.private_key = Some(esp_idf_svc::tls::X509::pem(private_key));
+        let options = esp_idf_svc::mqtt::client::MqttClientConfiguration {
+            client_id: Some(config.clientid),
+            server_certificate: Some(esp_idf_svc::tls::X509::pem(server_cert)),
+            client_certificate: Some(esp_idf_svc::tls::X509::pem(client_cert)),
+            private_key: Some(esp_idf_svc::tls::X509::pem(private_key)),
+            ..Default::default()
+        };
 
         let mut conn_addr = if config.port == 8883 {
             "mqtts://"

@@ -24,10 +24,7 @@ impl From<&tiny_http::Method> for HttpMethod {
 
 impl From<&mut tiny_http::Request> for HttpRequest {
     fn from(req: &mut tiny_http::Request) -> Self {
-        let buf_len = match req.body_length() {
-            Some(l) => l,
-            None => 0,
-        };
+        let buf_len = req.body_length().unwrap_or(0);
         let mut buf = vec![0; buf_len];
         req.as_reader().read_exact(&mut buf).unwrap();
 
@@ -49,31 +46,31 @@ fn wrap_in_arc_mutex<T>(inp: T) -> WrappedInArcMutex<T> {
 // http server from esp-idf-svc starts listening as soon as it is initialized and supports registering callback handlers later on
 // however tiny_http is a blocking server
 // we linux http server with idf by creating a hashmap mutex and spawning tiny_http in a separate thread
+type HttpCallbackMethodMapping<'a> = HashMap<HttpMethod, Box<dyn HttpEndpointCallback<'static>>>;
 pub struct HttpServerLinux {
     // inner hashmap to store mapping of endpoint method with callback
     // outer hashmap to store mapping to endpoint url with inner hashmap
-    callbacks:
-        WrappedInArcMutex<HashMap<String, HashMap<HttpMethod, Box<dyn HttpEndpointCallback<'static>>>>>,
+    callbacks: WrappedInArcMutex<HashMap<String, HttpCallbackMethodMapping<'static>>>,
     execution_thread_handle: Option<JoinHandle<()>>,
-    executor_channel: mpsc::Sender<()>
+    executor_channel: mpsc::Sender<()>,
 }
 
 impl HttpServer<HttpServerLinux> {
     pub fn new(config: &HttpConfiguration) -> Result<Self, Error> {
-        let callbacks: HashMap<String, HashMap<HttpMethod, Box<dyn HttpEndpointCallback<'static>>>> =
-            HashMap::new();
+        let callbacks: HashMap<String, HttpCallbackMethodMapping<'static>> = HashMap::new();
         let callbacks_mutex = wrap_in_arc_mutex(callbacks);
         let callbacks_mutex_clone = callbacks_mutex.clone();
 
         let server = tiny_http::Server::http(SocketAddr::new(config.addr, config.port)).unwrap();
-        
+
         // use a channel to send a dummy data to stop http server
         let (sender, recver) = mpsc::channel::<()>();
 
         // execute a server in a separate thread
         let executor_joinhandle = thread::spawn(move || {
             let callbacks = callbacks_mutex_clone.to_owned();
-            while recver.try_recv().is_err() { // untill there is no data in the buffer
+            while recver.try_recv().is_err() {
+                // untill there is no data in the buffer
                 let mut req = match server.recv() {
                     Ok(r) => r,
                     Err(e) => {
@@ -98,7 +95,8 @@ impl HttpServer<HttpServerLinux> {
                     None => HttpResponse::from_bytes("invalid url"),
                 };
 
-                req.respond(tiny_http::Response::from_data(res.get_bytes_vectored())).unwrap();
+                req.respond(tiny_http::Response::from_data(res.get_bytes_vectored()))
+                    .unwrap();
             }
         });
 
@@ -107,7 +105,7 @@ impl HttpServer<HttpServerLinux> {
         Ok(Self(HttpServerLinux {
             callbacks: callbacks_mutex,
             execution_thread_handle: Some(executor_joinhandle),
-            executor_channel: sender
+            executor_channel: sender,
         }))
     }
 
@@ -132,12 +130,12 @@ impl HttpServer<HttpServerLinux> {
     }
 }
 
-impl Drop for HttpServerLinux{
+impl Drop for HttpServerLinux {
     fn drop(&mut self) {
         // send a message to stop the server from listening
         self.executor_channel.send(()).unwrap();
 
-        let join_handle = std::mem::replace(&mut self.execution_thread_handle, None);
+        let join_handle = self.execution_thread_handle.take();
         // wait for thread to gracefully exit
         join_handle.map(|s| s.join());
     }

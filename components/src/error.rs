@@ -22,7 +22,7 @@ impl From<esp_idf_svc::sys::EspError> for Error {
 }
 
 #[cfg(target_os = "espidf")]
-impl From<esp_idf_svc::hal::io::EspIOError> for Error{
+impl From<esp_idf_svc::hal::io::EspIOError> for Error {
     fn from(value: esp_idf_svc::hal::io::EspIOError) -> Self {
         value.0.into() // convert EspIoError -> EspError -> Error
     }
@@ -41,7 +41,7 @@ impl From<std::io::Error> for Error {
 #[cfg(target_os = "linux")]
 impl From<pickledb::error::Error> for Error {
     fn from(value: pickledb::error::Error) -> Self {
-        let msg = format!("PickleDb Error: {}", value.to_string());
+        let msg = format!("PickleDb Error: {}", value);
 
         Self(msg)
     }

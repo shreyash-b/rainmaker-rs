@@ -19,14 +19,16 @@ impl From<esp_idf_svc::http::Method> for HttpMethod {
     }
 }
 
-impl Into<esp_idf_svc::http::Method> for HttpMethod {
-    fn into(self) -> esp_idf_svc::http::Method {
-        use esp_idf_svc::http::Method;
-        match self {
-            Self::GET => Method::Get,
-            Self::POST => Method::Post,
+impl From<HttpMethod> for esp_idf_svc::http::Method {
+    fn from(value: HttpMethod) -> Self {
+        match value {
+            HttpMethod::GET => esp_idf_svc::http::Method::Get,
+            HttpMethod::POST => esp_idf_svc::http::Method::Post,
         }
     }
+
+    /* fn from(self) -> esp_idf_svc::http::Method {
+    } */
 }
 // from esp_idf_http_request to custom_request
 impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
@@ -48,8 +50,10 @@ impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
 
 impl<'a> HttpServer<esp_idf_svc::http::server::EspHttpServer<'a>> {
     pub fn new(config: &HttpConfiguration) -> Result<Self, Error> {
-        let mut http_config = esp_idf_svc::http::server::Configuration::default();
-        http_config.http_port = config.port;
+        let http_config = esp_idf_svc::http::server::Configuration {
+            http_port: config.port,
+            ..Default::default()
+        };
         Ok(HttpServer(EspHttpServer::new(&http_config)?))
     }
 

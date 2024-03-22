@@ -22,7 +22,7 @@ pub enum ProtocomTransportConfig {
 
 pub struct ProtocommConfig {
     pub security: ProtocommSecurity,
-    pub transport: ProtocomTransportConfig
+    pub transport: ProtocomTransportConfig,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -32,7 +32,6 @@ pub(crate) enum EndpointType {
     #[default]
     Other,
 }
-
 
 #[derive(Default)]
 pub struct CallbackData {
@@ -112,7 +111,7 @@ where
 {
     let mut cb_data = cb_data.lock().unwrap();
     let curr_ep_type = cb_data.ep_ype.get(&ep).unwrap();
-    
+
     match curr_ep_type {
         EndpointType::Version => cb(ep, data),
         EndpointType::Security => {

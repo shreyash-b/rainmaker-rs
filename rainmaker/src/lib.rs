@@ -302,7 +302,7 @@ where
         let client_cert = rmaker_namespace.get_bytes("client_cert");
         let client_key = rmaker_namespace.get_bytes("client_key");
 
-        if node_id == None || client_cert == None || client_key == None {
+        if node_id.is_none() || client_cert.is_none() || client_key.is_none() {
             let claimdata_notfound_error = "Please set RMAKER_CLAIMDATA_LOC env variable pointing to your rainmaker claimdata folder";
 
             let claimdata_loc = env::var("RMAKER_CLAIMDATA_PATH").expect(claimdata_notfound_error);
@@ -339,7 +339,7 @@ where
     }
 }
 
-fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
+fn mqtt_callback(event: MqttEvent, node: Arc<Node<'_>>) {
     let print_mqtt_event = |event_name: MqttEvent| log::info!("mqtt: {event_name:?}");
 
     match event {
@@ -350,7 +350,7 @@ fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
             let devices = received_val.keys();
             for device in devices {
                 let params = received_val.get(device).unwrap().to_owned();
-                node.exeute_device_callback(&device, params);
+                node.exeute_device_callback(device, params);
             }
         }
 
@@ -360,11 +360,11 @@ fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
     }
 }
 
-pub fn cloud_user_assoc_callback<'a>(
+pub fn cloud_user_assoc_callback(
     _ep: String,
     data: Vec<u8>,
     node_id: String,
-    mqtt_client: Option<WrappedInArcMutex<MqttClient<'a>>>,
+    mqtt_client: Option<WrappedInArcMutex<MqttClient<'_>>>,
 ) -> Vec<u8> {
     let req_proto = RMakerConfigPayload::decode(&*data).unwrap();
     let req_payload = req_proto.payload.unwrap();
@@ -376,38 +376,35 @@ pub fn cloud_user_assoc_callback<'a>(
 
     log::info!("received user_id={}, secret_key={}", user_id, secret_key);
 
-    match mqtt_client {
-        Some(mqtt) => {
-            let mut mqtt_client = mqtt.lock().unwrap();
+    if let Some(mqtt) = mqtt_client {
+        let mut mqtt_client = mqtt.lock().unwrap();
 
-            let user_mapping_json = json!({
-                "node_id": node_id,
-                "user_id": user_id,
-                "secret_key": secret_key,
-                "reset": true
-            });
+        let user_mapping_json = json!({
+            "node_id": node_id,
+            "user_id": user_id,
+            "secret_key": secret_key,
+            "reset": true
+        });
 
-            let user_mapping_topic = format!("node/{}/user/mapping", node_id);
-            mqtt_client.publish(
-                user_mapping_topic.as_str(),
-                &mqtt::QoSLevel::AtLeastOnce,
-                user_mapping_json.to_string().as_bytes().to_vec(),
-            );
-        }
-        None => {}
+        let user_mapping_topic = format!("node/{}/user/mapping", node_id);
+        mqtt_client.publish(
+            user_mapping_topic.as_str(),
+            &mqtt::QoSLevel::AtLeastOnce,
+            user_mapping_json.to_string().as_bytes().to_vec(),
+        );
     }
 
-    let mut res_proto = RMakerConfigPayload::default();
-    res_proto.msg = RMakerConfigMsgType::TypeRespSetUserMapping.into();
-    res_proto.payload = Some(r_maker_config_payload::Payload::RespSetUserMapping(
-        RespSetUserMapping {
-            status: RMakerConfigStatus::Success.into(),
-            node_id,
-        },
-    ));
+    let res_proto = RMakerConfigPayload {
+        msg: RMakerConfigMsgType::TypeRespSetUserMapping.into(),
+        payload: Some(r_maker_config_payload::Payload::RespSetUserMapping(
+            RespSetUserMapping {
+                status: RMakerConfigStatus::Success.into(),
+                node_id,
+            },
+        )),
+    };
 
-    let res = res_proto.encode_to_vec();
-    res
+    res_proto.encode_to_vec()
 }
 
 pub fn prevent_drop() {

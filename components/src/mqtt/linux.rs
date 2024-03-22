@@ -44,9 +44,7 @@ impl From<&rumqttc::Event> for MqttEvent {
                 _ => MqttEvent::Other,
             },
 
-            rumqttc::Event::Outgoing(e) => match e {
-                _ => Self::Other,
-            },
+            rumqttc::Event::Outgoing(_) => Self::Other,
         }
     }
 }
@@ -57,7 +55,7 @@ impl MqttClient<rumqttc::Client> {
         tlscerts: &'static TLSconfiguration,
         callback: Box<dyn Fn(MqttEvent) + Send>,
     ) -> anyhow::Result<Self> {
-        let mut option = rumqttc::MqttOptions::new(&*config.clientid, &*config.host, config.port);
+        let mut option = rumqttc::MqttOptions::new(config.clientid, config.host, config.port);
         option.transport();
 
         option.set_keep_alive(std::time::Duration::from_secs(60));
@@ -72,7 +70,7 @@ impl MqttClient<rumqttc::Client> {
         ));
         let (client, mut conn) = rumqttc::Client::new(option, 5);
         std::thread::spawn(move || {
-            for (_i, notification) in conn.iter().enumerate() {
+            for notification in conn.iter() {
                 match notification {
                     Ok(notif) => callback(MqttEvent::from(&notif)),
                     Err(e) => log::error!("error while executing callback: {:?}", e),

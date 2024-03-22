@@ -23,7 +23,7 @@ pub enum WifiProvScheme {
 pub struct WifiProvisioningConfig {
     pub device_name: String,
     pub scheme: WifiProvScheme,
-    pub security: ProtocommSecurity
+    pub security: ProtocommSecurity,
 }
 
 pub struct WifiProvisioningMgr<'a> {
@@ -34,10 +34,13 @@ pub struct WifiProvisioningMgr<'a> {
 }
 
 impl<'a> WifiProvisioningMgr<'a> {
-    pub fn new(wifi_client: WrappedInArcMutex<WifiMgr<'static>>, config: WifiProvisioningConfig) -> Self {
-        let protocomm_config = ProtocommConfig{
+    pub fn new(
+        wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
+        config: WifiProvisioningConfig,
+    ) -> Self {
+        let protocomm_config = ProtocommConfig {
             transport: ProtocomTransportConfig::Httpd(HttpConfiguration::default()),
-            security: config.security
+            security: config.security,
         };
 
         let protocomm_new = wrap_in_arc_mutex(Protocomm::new(protocomm_config));
@@ -51,8 +54,6 @@ impl<'a> WifiProvisioningMgr<'a> {
         prov_mgr.init();
 
         prov_mgr
-
-        
     }
 
     pub fn init(&mut self) {
@@ -85,7 +86,7 @@ impl<'a> WifiProvisioningMgr<'a> {
     pub fn get_provisioned_creds() -> Option<(String, String)> {
         let nvs = Nvs::new(NvsPartition::new("nvs").unwrap(), "wifi_creds").unwrap();
         let ssid_nvs = nvs.get_bytes("ssid");
-        if ssid_nvs == None {
+        if ssid_nvs.is_none() {
             None
         } else {
             let ssid = String::from_utf8(ssid_nvs.unwrap()).unwrap();
@@ -96,7 +97,6 @@ impl<'a> WifiProvisioningMgr<'a> {
     }
 
     fn get_version_info(&self) -> serde_json::Value {
-
         let ver_info = json!({
             "prov": {
                 "ver": PROV_MGR_VER,
@@ -104,7 +104,7 @@ impl<'a> WifiProvisioningMgr<'a> {
                 "cap": ["wifi_scan"]
             }
         });
-        
+
         ver_info
     }
 
@@ -117,7 +117,8 @@ impl<'a> WifiProvisioningMgr<'a> {
         pc.set_security_endpoint("prov-session").unwrap(); // hardcoded sec params for sec0
 
         let version_str = self.get_version_info();
-        pc.set_version_endpoint("proto-ver", version_str.to_string()).unwrap();
+        pc.set_version_endpoint("proto-ver", version_str.to_string())
+            .unwrap();
 
         pc.register_endpoint("prov-config", move |ep, data| -> Vec<u8> {
             prov_config_callback(ep, data, wifi_driv_prov_config.to_owned())
@@ -150,7 +151,7 @@ impl<'a> WifiProvisioningMgr<'a> {
 
         let qr_url = format!(
             "https://espressif.github.io/esp-jumpstart/qrcode.html?data={}",
-            data_json.to_string()
+            data_json
         );
 
         log::info!(
@@ -168,34 +169,30 @@ fn prov_config_callback(
     let req_proto = WiFiConfigPayload::decode(&*data).unwrap();
 
     let msg_type = req_proto.msg();
-    let res = match msg_type {
+    match msg_type {
         WiFiConfigMsgType::TypeCmdGetStatus => handle_cmd_get_status(wifi_driv),
         WiFiConfigMsgType::TypeCmdSetConfig => {
             handle_cmd_set_config(req_proto.payload.unwrap(), wifi_driv)
         }
         WiFiConfigMsgType::TypeCmdApplyConfig => handle_cmd_apply_config(),
         _ => unreachable!(),
-    };
-
-    res
+    }
 }
 
-fn prov_scan_callback<'a>(
+fn prov_scan_callback(
     _ep: String,
     data: Vec<u8>,
-    wifi_driv: WrappedInArcMutex<WifiMgr<'a>>,
+    wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
 ) -> Vec<u8> {
     let req_proto = WiFiScanPayload::decode(&*data).unwrap();
     let msg_type = req_proto.msg();
 
-    let res = match msg_type {
+    match msg_type {
         WiFiScanMsgType::TypeCmdScanStart => handle_cmd_scan_start(),
         WiFiScanMsgType::TypeCmdScanStatus => handle_cmd_scan_status(),
         WiFiScanMsgType::TypeCmdScanResult => handle_cmd_scan_result(wifi_driv),
         _ => unreachable!(),
-    };
-
-    res
+    }
 }
 
 fn handle_cmd_set_config(
@@ -221,13 +218,14 @@ fn handle_cmd_set_config(
             nvs.set_bytes("password", config.passphrase.as_ref())
                 .unwrap();
 
-            let mut res_data = WiFiConfigPayload::default();
-            res_data.msg = WiFiConfigMsgType::TypeRespSetConfig.into();
-            res_data.payload = Some(wi_fi_config_payload::Payload::RespSetConfig(
-                RespSetConfig {
-                    status: Status::Success.into(),
-                },
-            ));
+            let res_data = WiFiConfigPayload {
+                msg: WiFiConfigMsgType::TypeRespSetConfig.into(),
+                payload: Some(wi_fi_config_payload::Payload::RespSetConfig(
+                    RespSetConfig {
+                        status: Status::Success.into(),
+                    },
+                )),
+            };
 
             res_data.encode_to_vec()
         }
@@ -236,14 +234,14 @@ fn handle_cmd_set_config(
 }
 
 fn handle_cmd_apply_config() -> Vec<u8> {
-    let mut resp_msg = WiFiConfigPayload::default();
-    resp_msg.msg = WiFiConfigMsgType::TypeRespApplyConfig.into();
-
-    resp_msg.payload = Some(wi_fi_config_payload::Payload::RespApplyConfig(
-        RespApplyConfig {
-            status: Status::Success.into(),
-        },
-    ));
+    let resp_msg = WiFiConfigPayload {
+        msg: WiFiConfigMsgType::TypeRespApplyConfig.into(),
+        payload: Some(wi_fi_config_payload::Payload::RespApplyConfig(
+            RespApplyConfig {
+                status: Status::Success.into(),
+            },
+        )),
+    };
 
     resp_msg.encode_to_vec()
 }
@@ -263,42 +261,42 @@ fn handle_cmd_get_status(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
         channel: 0,
     };
 
-    let mut resp_msg = WiFiConfigPayload::default();
-    resp_msg.msg = WiFiConfigMsgType::TypeRespGetStatus.into();
-
-    resp_msg.payload = Some(wi_fi_config_payload::Payload::RespGetStatus(
-        RespGetStatus {
-            status: Status::Success.into(),
-            sta_state: WifiStationState::Connected.into(),
-            state: Some(resp_get_status::State::Connected(wifi_state)),
-        },
-    ));
+    let resp_msg = WiFiConfigPayload {
+        msg: WiFiConfigMsgType::TypeRespGetStatus.into(),
+        payload: Some(wi_fi_config_payload::Payload::RespGetStatus(
+            RespGetStatus {
+                status: Status::Success.into(),
+                sta_state: WifiStationState::Connected.into(),
+                state: Some(resp_get_status::State::Connected(wifi_state)),
+            },
+        )),
+    };
 
     resp_msg.encode_to_vec()
 }
 
 fn handle_cmd_scan_start() -> Vec<u8> {
     log::info!("Starting wifi scan");
-    let mut resp_msg = WiFiScanPayload::default();
-    resp_msg.msg = WiFiScanMsgType::TypeRespScanStart.into();
-    resp_msg.status = Status::Success.into();
-
-    resp_msg.payload = Some(wi_fi_scan_payload::Payload::RespScanStart(RespScanStart {}));
+    let resp_msg = WiFiScanPayload {
+        msg: WiFiScanMsgType::TypeRespScanStart.into(),
+        status: Status::Success.into(),
+        payload: Some(wi_fi_scan_payload::Payload::RespScanStart(RespScanStart {})),
+    };
 
     resp_msg.encode_to_vec()
 }
 
 fn handle_cmd_scan_status() -> Vec<u8> {
-    let mut resp_msg = WiFiScanPayload::default();
-    resp_msg.msg = WiFiScanMsgType::TypeRespScanStatus.into();
-    resp_msg.status = Status::Success.into();
-
-    resp_msg.payload = Some(wi_fi_scan_payload::Payload::RespScanStatus(
-        RespScanStatus {
-            scan_finished: true,
-            result_count: 1,
-        },
-    ));
+    let resp_msg = WiFiScanPayload {
+        msg: WiFiScanMsgType::TypeRespScanStatus.into(),
+        status: Status::Success.into(),
+        payload: Some(wi_fi_scan_payload::Payload::RespScanStatus(
+            RespScanStatus {
+                scan_finished: true,
+                result_count: 1,
+            },
+        )),
+    };
 
     resp_msg.encode_to_vec()
 }
@@ -306,9 +304,11 @@ fn handle_cmd_scan_status() -> Vec<u8> {
 fn handle_cmd_scan_result(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
     log::info!("Sending scan results");
 
-    let mut resp_msg = WiFiScanPayload::default();
-    resp_msg.msg = WiFiScanMsgType::TypeRespScanResult.into();
-    resp_msg.status = Status::Success.into();
+    let mut resp_msg = WiFiScanPayload {
+        msg: WiFiScanMsgType::TypeRespScanResult.into(),
+        status: Status::Success.into(),
+        ..Default::default()
+    };
 
     let mut wifi_driv = wifi_driv.lock().unwrap();
     let wifi_networks = wifi_driv.scan().unwrap();

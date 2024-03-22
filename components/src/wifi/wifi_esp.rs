@@ -65,12 +65,12 @@ impl From<AccessPointInfo> for WifiApInfo {
 
 impl From<WifiApConfig> for AccessPointConfiguration {
     fn from(value: WifiApConfig) -> Self {
-        let mut config = AccessPointConfiguration::default();
-        config.ssid = value.ssid.as_str().into();
-        config.password = value.password.as_str().into();
-        config.auth_method = value.auth.into();
-
-        config
+        AccessPointConfiguration {
+            ssid: value.ssid.as_str().into(),
+            password: value.password.as_str().into(),
+            auth_method: value.auth.into(),
+            ..Default::default()
+        }
     }
 }
 
@@ -96,7 +96,6 @@ impl From<WifiClientConfig> for ClientConfiguration {
             auth_method: value.auth.into(),
             password: value.password.as_str().into(),
             channel: Some(value.channel),
-            ..Default::default()
         }
     }
 }
@@ -148,9 +147,7 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
 
     pub fn set_ap_config(&mut self, config: WifiApConfig) -> Result<(), Error> {
         let apconfig = AccessPointConfiguration::from(config);
-        let wifi_config: Configuration;
-
-        wifi_config = match self.client.get_configuration()?.as_client_conf_ref() {
+        let wifi_config = match self.client.get_configuration()?.as_client_conf_ref() {
             Some(config) => Configuration::Mixed(config.to_owned(), apconfig),
             None => {
                 // for some reason esp_idf_svc sets 192.168.4.1 as the default gateway
@@ -164,9 +161,7 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
 
     pub fn set_client_config(&mut self, config: WifiClientConfig) -> Result<(), Error> {
         let staconfig = ClientConfiguration::from(config);
-        let wifi_config: Configuration;
-
-        wifi_config = match self.client.get_configuration()?.as_ap_conf_ref() {
+        let wifi_config = match self.client.get_configuration()?.as_ap_conf_ref() {
             Some(config) => Configuration::Mixed(staconfig, config.to_owned()),
             None => Configuration::Client(staconfig),
         };

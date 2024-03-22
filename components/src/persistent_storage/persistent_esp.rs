@@ -6,7 +6,7 @@ use esp_idf_svc::nvs::{EspCustomNvsPartition, EspNvs, NvsCustom};
 
 impl NvsPartition<EspCustomNvsPartition> {
     pub fn new(partition_name: &str) -> Result<Self, Error> {
-        let partition = EspCustomNvsPartition::take(&partition_name.to_string())?;
+        let partition = EspCustomNvsPartition::take(partition_name)?;
         Ok(Self(partition))
     }
 }
@@ -24,12 +24,9 @@ impl Nvs<EspNvs<NvsCustom>> {
         Ok(())
     }
 
-    pub fn get_bytes<'a>(&self, name: &str) -> Option<Vec<u8>> {
+    pub fn get_bytes(&self, name: &str) -> Option<Vec<u8>> {
         let mut buf = [0; 2500];
         let data = self.0.get_blob(name, &mut buf).unwrap().to_owned();
-        match data {
-            Some(v) => Some(v.to_vec()),
-            None => None,
-        }
+        data.map(|v| v.to_vec())
     }
 }

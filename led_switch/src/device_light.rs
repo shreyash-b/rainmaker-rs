@@ -48,49 +48,28 @@ pub fn handle_light_update(
         let mut driver = driver.lock().unwrap();
         let mut curr_data = LIGHT_DATA.lock().unwrap();
 
-        match params.get("Power") {
-            Some(power) => {
-                let power_val = power.as_bool().unwrap();
-                curr_data.0 = power_val;
-                if power_val == false {
-                    let light = std::iter::repeat(hsv2rgb(smart_leds::hsv::Hsv::default())).take(1); // val should be 0
-                    driver.write(light).unwrap();
-                }
+        if let Some(power) = params.get("Power") {
+            let power_val = power.as_bool().unwrap();
+            curr_data.0 = power_val;
+            if !power_val {
+                let light = std::iter::repeat(hsv2rgb(smart_leds::hsv::Hsv::default())).take(1); // val should be 0
+                driver.write(light).unwrap();
             }
-            None => {}
         }
 
-        match params.get("Hue") {
-            Some(hue) => {
-                // let hue_val = hue.as_f64().unwrap();
-                // let hue_val = hue_val / 360.0 * 255.0;
-
-                curr_data.1.hue = hue.as_u64().unwrap() as u16;
-            }
-            None => {}
+        if let Some(hue) = params.get("Hue") {
+            curr_data.1.hue = hue.as_u64().unwrap() as u16;
         }
 
-        match params.get("Saturation") {
-            Some(sat) => {
-                // let sat_val = sat.as_f64().unwrap();
-                // let sat_val = sat_val / 100.0 * 255.0;
-
-                curr_data.1.sat = sat.as_u64().unwrap() as u8;
-            }
-            None => {}
+        if let Some(sat) = params.get("Saturation") {
+            curr_data.1.sat = sat.as_u64().unwrap() as u8;
         }
 
-        match params.get("Brightness") {
-            Some(brt) => {
-                // let brt_val = brt.as_f64().unwrap();
-                // let brt_val = brt_val / 100.0 * 255.0;
-
-                curr_data.1.val = brt.as_u64().unwrap() as u8;
-            }
-            None => {}
+        if let Some(brt) = params.get("Brightness") {
+            curr_data.1.val = brt.as_u64().unwrap() as u8;
         }
 
-        if curr_data.0 == true {
+        if curr_data.0 {
             // power
             let curr_hsv = smart_leds::hsv::Hsv {
                 hue: map_to_255(curr_data.1.hue, 360.0),
@@ -139,7 +118,7 @@ fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'stati
     drop(rmaker_lock);
 }
 
-#[cfg(target_os="espidf")]
+#[cfg(target_os = "espidf")]
 fn map_to_255(val: u16, n: f32) -> u8 {
     let val_float = val as f32;
     let val = val_float * 255.0 / n;

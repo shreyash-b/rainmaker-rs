@@ -247,12 +247,12 @@ impl<'a> Device<'a> {
     }
 
     pub fn execute_callback(&self, params: HashMap<String, /* ParamDataType */ Value>) {
-        let cb: &DeviceCbType;
-        if self.callback.is_some() {
-            cb = self.callback.as_ref().unwrap();
+        let cb = if self.callback.is_some() {
+            self.callback.as_ref().unwrap()
         } else {
             return;
-        }
+        };
+
         cb(params);
     }
 

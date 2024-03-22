@@ -29,22 +29,21 @@ impl NvsPartition<PathBuf> {
 impl Nvs<PickleDb> {
     pub fn new(partition: NvsPartition<PathBuf>, namespace: &str) -> Result<Self, Error> {
         let namespace_pathname = format!("{}.json", namespace);
-        let namespace_path = PathBuf::from(partition.0.join(namespace_pathname));
+        let namespace_path = partition.0.join(namespace_pathname);
 
-        let db: PickleDb;
-        if namespace_path.exists() {
-            db = PickleDb::load(
+        let db = if namespace_path.exists() {
+            PickleDb::load(
                 &namespace_path,
                 pickledb::PickleDbDumpPolicy::AutoDump,
                 pickledb::SerializationMethod::Json,
-            )?;
+            )?
         } else {
-            db = PickleDb::new(
+            PickleDb::new(
                 &namespace_path,
                 pickledb::PickleDbDumpPolicy::AutoDump,
                 pickledb::SerializationMethod::Json,
-            );
-        }
+            )
+        };
 
         Ok(Self(db))
     }

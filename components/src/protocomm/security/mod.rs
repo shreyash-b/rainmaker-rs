@@ -1,4 +1,3 @@
-
 pub(crate) mod sec0;
 pub(crate) mod sec1;
 pub(crate) trait SecurityTrait: Default {
@@ -7,24 +6,25 @@ pub(crate) trait SecurityTrait: Default {
     fn decrypt(&mut self, indata: &mut [u8]); // decryption in-place
 }
 
-
 pub enum ProtocommSecurity {
     Sec0(sec0::Sec0),
-    Sec1(sec1::Sec1),
+    Sec1(Box<sec1::Sec1>),
 }
 
 impl Default for ProtocommSecurity {
     fn default() -> Self {
-        Self::Sec0(sec0::Sec0::default())
+        Self::Sec0(sec0::Sec0)
     }
 }
 
 impl ProtocommSecurity {
     pub fn new_sec1(pop: Option<String>) -> Self {
-        Self::Sec1(sec1::Sec1 {
+        let sec1 = sec1::Sec1 {
             pop,
             ..Default::default()
-        })
+        };
+
+        Self::Sec1(Box::new(sec1))
     }
 }
 

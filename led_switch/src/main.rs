@@ -59,6 +59,7 @@ fn main() -> Result<(), RMakerError> {
 
     let led_driver: &device_led::LedDriverType;
     let light_driver: &device_light::LightDriverType;
+    let _st = "string";
 
     #[cfg(target_os = "espidf")]
     {
@@ -89,6 +90,9 @@ fn main() -> Result<(), RMakerError> {
     let mut light_device = create_light_device("Light");
 
     let rmaker_mutex = Box::leak(Box::new(Mutex::new(Rainmaker::new()?))); // needed just to keep compiler happy
+
+    #[allow(clippy::mut_mutex_lock)]
+    // clippy suggests using get_mut() here but we don't want to do that
     let mut rmaker = rmaker_mutex.lock().unwrap();
 
     light_device.register_callback(Box::new(|params| {
@@ -109,7 +113,7 @@ fn main() -> Result<(), RMakerError> {
     node.add_device(light_device);
     node.add_device(led_device);
     rmaker.register_node(node);
-    rmaker.init_wifi(ProtocommSecurity::new_sec1(Some("abcd1234".to_string())))?;  // hardcoded
+    rmaker.init_wifi(ProtocommSecurity::new_sec1(Some("abcd1234".to_string())))?; // hardcoded
     rmaker.start()?;
     drop(rmaker); // drop the lock so that callbacks can use it
     rainmaker::prevent_drop();

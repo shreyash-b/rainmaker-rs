@@ -23,27 +23,21 @@ pub fn handle_led_update(
         let mut driver = driver.lock().unwrap();
         let mut curr_data = LED_DATA.lock().unwrap();
 
-        match params.get("Power") {
-            Some(power) => {
-                let power_val = power.as_bool().unwrap();
-                curr_data.0 = power_val;
-                if power_val == false {
-                    driver.set_duty(0).unwrap();
-                }
+        if let Some(power) = params.get("Power") {
+            let power_val = power.as_bool().unwrap();
+            curr_data.0 = power_val;
+            if !power_val {
+                driver.set_duty(0).unwrap();
             }
-            None => {}
         };
 
-        match params.get("Brightness") {
-            Some(brt) => {
-                let brt_val = brt.as_f64().unwrap();
-                let brt_val = brt_val * 255.0 / 100.0;
-                curr_data.1 = brt_val as u32;
-            }
-            None => {}
+        if let Some(brt) = params.get("Brightness") {
+            let brt_val = brt.as_f64().unwrap();
+            let brt_val = brt_val * 255.0 / 100.0;
+            curr_data.1 = brt_val as u32;
         };
 
-        if curr_data.0 == true {
+        if curr_data.0 {
             // power
             driver.set_duty(curr_data.1).unwrap();
         }
