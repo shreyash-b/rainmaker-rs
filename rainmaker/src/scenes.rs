@@ -1,4 +1,4 @@
-// I (176122) esp_rmaker_param: Received params: {"Scenes":{"Scenes":[{"action":{"Light":{"Brightness":20,"Hue":221,"Power":true,"Saturation":41}},"id":"G5GW","info":"","name":"scene1","operation":"add"}]}}
+// I (176122) esp_rmaker_param: Received params: {"Scenes":{"Scenes":[{"action":{"Light":{"Brightness":20,"Hue":221,"Power":true,"Saturation":41}, "LED":{"Power":true}},"id":"G5GW","info":"","name":"scene1","operation":"add"}]}}
 // I (176162) esp_rmaker_param: Reporting params: {"Scenes":{"Scenes":[{"name":"scene1","id":"G5GW","action":{"Light":{"Brightness":20,"Hue":221,"Power":true,"Saturation":41}}}]}}
 // I (205202) esp_rmaker_param: Received params: {"Scenes":{"Scenes":[{"id":"G5GW","operation":"activate"}]}}
 // I (205212) esp_rmaker_param: Received params: {"Light":{"Brightness":20,"Hue":221,"Power":true,"Saturation":41}}
@@ -40,35 +40,37 @@
 // I (388512) esp_rmaker_param: Reporting params: {"Light":{"Saturation":78}}
 // I (388582) esp_rmaker_param: Reporting params: {"Schedule":{"Schedules":[{"name":"schedule1","id":"UYTS","enabled":false,"action":{"Light":{"Brightness":68,"Hue":79,"Power":true,"Saturation":78}},"triggers":[{"m":1339,"d":0,"ts":0}]}]}}
 
-use serde::{de::value, Deserialize, Serialize};
+use serde::{ Deserialize, Serialize };
 use serde_json::Value;
 use std::collections::HashMap;
 #[allow(unused_imports)]
 use log:: { info, warn, error, debug };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SceneAction {
-    //data: DeviceCbType,
-}
+use crate::node::Node;
+use crate::Rainmaker;
+
+const MAX_SCENES: usize = 5;
+// ToDo: Implement a way to store the values in the NVS for saving the values even if the device turns off
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Scene {
     #[serde(default)]
-    name: String,
-    id: String,
+    pub(crate) name: String,
+    pub(crate) id: String,
+    #[serde(default, skip_serializing)]
+    pub(crate) info: String,
     #[serde(default)]
-    info: String,
-    #[serde(default)]
-    action: String,
-    operation: String,
+    pub(crate) action: HashMap<String, HashMap<String, Value>>,
+    #[serde(skip_serializing)]
+    pub(crate) operation: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScenePrivData {
     #[serde(rename = "Scenes")]
-    scenes: Vec<Scene>,
+    pub scenes: Vec<Scene>,
     #[serde(skip)]
-    totalscenes: i32,
+    pub totalscenes: usize,
 }
 
 #[allow(unused)]
@@ -76,26 +78,31 @@ impl ScenePrivData {
     fn get_scene_from_id(&self, id: &String) -> Option<&Scene> {
         for scene in &self.scenes {
             if &scene.id == id {
-                debug!("Scene with id {} found in list for get.", scene.id);
+                debug!("Scene with id {} found in list for get.", &id);
                 return Some(scene);
             }
         }
-        debug!("Scene with id {} not found in list for get.", id);
+        debug!("Scene with id {} not found in list for get.", &id);
         None
     }
 
-    fn add_scene_to_list(&mut self, scene: Scene) {
+    pub fn add_scene_to_list(&mut self, scene: Scene) {
         if self.get_scene_from_id(&scene.id) != None {
             info!("Scene with id {} already added to list. Not adding again.", scene.id);
             return;
         }
+        if self.totalscenes >= MAX_SCENES {
+            info!("Maximum number of scenes reached. Not adding any more.");
+            return;
+        }
         debug!("Scene with id {} is being added to list.", scene.id);
-        self.scenes.push(scene);
+        self.scenes[self.totalscenes] = scene;
         self.totalscenes += 1;
         debug!("Scene added to list.");
+        //self.report_params()
     }
 
-    fn remove_scene_from_list(&mut self, id: String) {
+    pub fn remove_scene_from_list(&mut self, id: String) {
         if self.get_scene_from_id(&id) == None {
             info!("Scene with id {} already removed from list. Not removing again.", &id);
             return;
@@ -106,7 +113,7 @@ impl ScenePrivData {
         debug!("Scene removed from list.");
     }
 
-    fn edit(&mut self, id:String, action:String) {
+    pub fn edit(&mut self, id:String, action: HashMap<String, HashMap<String, Value>>) {
         if let Some(scene) = self.get_scene_from_id(&id) {
             debug!("Scene with id {} is being edited.", &id);
             let scene_: Scene = Scene{
@@ -125,74 +132,26 @@ impl ScenePrivData {
         }
     }
 
-    fn activate(&mut self, id: String) {
+    pub fn activate(&mut self, id: String, node: &Node) {
         // TODO:
-    }
-
-    fn deactivate(&mut self, id: String) {
-        // TODO:
-    }
-}
-
-pub(crate) static mut SCENES: ScenePrivData = ScenePrivData {
-    scenes: Vec::new(),
-    totalscenes: 0,
-};
-
-pub(crate) fn scenecb(params: HashMap<String, Value>) {
-    if params.get("Scenes").is_some() {
-        let scenes = params.get("Scenes").unwrap();
-        match scenes.as_array() {
-            Some(scenes_array) => {
-                for scene in scenes_array.iter() {
-                    match serde_json::from_str::<Value>(&scene.as_str().unwrap()) {
-                        Ok(value) => {
-                            let operation = value.get("operation").and_then(|v| v.as_str()).unwrap();
-                            let id = value.get("id").and_then(|v| v.as_str()).unwrap();
-                            let name = value.get("name").and_then(|v| v.as_str()).unwrap();
-                            let action = value.get("action").and_then(|v| v.as_str()).unwrap();
-                            let info = value.get("info").and_then(|v| v.as_str()).unwrap();
-
-                            if operation == "add" {
-                                //Rust demands an unsafe block for mutating static variable
-                                unsafe { SCENES.add_scene_to_list(Scene {
-                                    name: name.to_string(),
-                                    id: id.to_string(),
-                                    info: info.to_string(),
-                                    action: action.to_string(),
-                                    operation: operation.to_string(),
-                                }) };
-                            }
-                            else if operation == "remove" {
-                                //Rust demands an unsafe block for mutating static variable
-                                unsafe { SCENES.remove_scene_from_list(id.to_string()) };
-                            }
-                            else if operation == "edit" {
-                                //Rust demands an unsafe block for mutating static variable
-                                unsafe { SCENES.edit(id.to_string(), action.to_string()) };
-                            }
-                            else if operation == "activate" {
-                                //Rust demands an unsafe block for mutating static variable
-                                unsafe { SCENES.activate(id.to_string()) };
-                            }
-                            else if operation == "deactivate" {
-                                //Rust demands an unsafe block for mutating static variable
-                                unsafe { SCENES.deactivate(id.to_string()) }
-                            }
-                            else {
-                                info!("Unknown operation {} for scene {}", operation, id);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Error parsing Scene: {:?}", e);
-                        }
-                    }
-                }
-            },
-            _ => {},
+        if let Some(scene) = self.get_scene_from_id(&id) {
+            debug!("Scene with id {} is being activated.", &id);
+            for (device, param) in scene.action.iter() {
+                node.exeute_device_callback(device, param);
+            }
         }
     }
+
+    pub fn deactivate(&mut self, id: String, node: &Node) {
+        // TODO: Save initial values and then save it while activating thus need more space
+    }
 }
+
+// pub(crate) static mut SCENES: ScenePrivData = ScenePrivData {
+//     scenes: Vec::new(),
+//     totalscenes: 0,
+// };
+
 
 
 

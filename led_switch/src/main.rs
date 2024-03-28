@@ -17,10 +17,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use rainmaker::{
-    error::RMakerError,
-    node::{Info, Node},
-    scenes,
-    Rainmaker,
+    error::RMakerError, node::{Info, Node}, scenes::ScenePrivData, Rainmaker
 };
 use serde_json::Value;
 
@@ -67,7 +64,7 @@ fn main() -> Result<(), RMakerError> {
     
         let light_driver_local = Ws2812Esp32Rmt::new(
             peripherals.rmt.channel0,
-            peripherals.pins.gpio8)
+            peripherals.pins.gpio2) // Remember to change to gpio8 for esp32c*
             .unwrap();
 
         led_driver = Box::leak(Box::new(Mutex::new(led_driver_local)));
@@ -85,12 +82,12 @@ fn main() -> Result<(), RMakerError> {
     let rmaker_mutex = Box::leak(Box::new(Mutex::new(Rainmaker::new()?))); // needed just to keep compiler happy
     let mut rmaker = rmaker_mutex.lock().unwrap();
     
-    light_device.register_callback(Box::new(|params| light_cb(params, light_driver, rmaker_mutex)));
+    light_device.register_callback(Box::new(|params| light_cb(params.clone(), light_driver, rmaker_mutex)));
 
     rmaker.init();
 
     let mut led_device = create_led_device("LED");
-    led_device.register_callback(Box::new(|params| led_cb(params, led_driver, rmaker_mutex)));
+    led_device.register_callback(Box::new(|params| led_cb(params.clone(), led_driver, rmaker_mutex)));
 
     let mut node = Node::new(
         rmaker.get_node_id(),
@@ -98,9 +95,10 @@ fn main() -> Result<(), RMakerError> {
         Info {},
         vec![],
     );
+    
     node.add_device(light_device);
     node.add_device(led_device);
-    node.enable_scenes();
+    rmaker.enable_scenes();
     rmaker.register_node(node);
     rmaker.init_wifi()?;
     rmaker.start()?;

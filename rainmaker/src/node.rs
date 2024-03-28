@@ -30,11 +30,13 @@ Devices (devices, Array of objects)
 use std::{collections::HashMap, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{from_slice, from_str, Value};
+use components::persistent_storage::*;
 
-use crate::scenes::SCENES;
 
-type DeviceCbType<'a> = Box<dyn Fn(HashMap<String, Value>) + Send + Sync + 'a>;
+type DeviceCbType<'a> = Box<dyn Fn(&HashMap<String, Value>) + Send + Sync + 'a>;
+type ServiceCbType<'a> = Box<dyn Fn(&HashMap<String, Value>) + Send + Sync + 'a>;
+
 // type ParamCbType<'a> = Box<dyn Fn(HashMap<String, ParamDataType>) + Send + Sync + 'a>;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -51,6 +53,24 @@ pub enum DeviceType {
     Scenes,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ParamDataType {
+    #[serde(rename="bool")]
+    Boolean,
+    #[serde(rename="int")]
+    Integer,
+    #[serde(rename="float")]
+    Float,
+    #[serde(rename="string")]
+    String,
+    #[serde(rename="array")]
+    Array,
+    #[serde(rename="object")]
+    Object,
+    #[serde(rename="invalid")]
+    None,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Node<'a> {
     node_id: String,
@@ -58,6 +78,7 @@ pub struct Node<'a> {
     info: Info,
     attributes: Vec<NodeAttributes>,
     devices: Vec<Device<'a>>,
+    services: Vec<Service<'a>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -100,6 +121,31 @@ impl Debug for Device<'_> {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct Service<'a> {
+    name: String,
+    #[serde(rename = "type")]
+    device_type: DeviceType,
+    #[serde(rename = "primary")]
+    primary_param: String,
+    attributes: Vec<DeviceAttributes>,
+    params: Vec<Param>,
+    #[serde(skip)]
+    callback: Option<ServiceCbType<'a>>,
+}
+
+impl Debug for Service<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Service")
+            .field("name", &self.name)
+            .field("device_type", &self.device_type)
+            .field("primary_param", &self.primary_param)
+            .field("attributes", &self.attributes)
+            .field("params", &self.params)
+            .finish()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DeviceAttributes {
     name: String,
@@ -109,7 +155,7 @@ pub struct DeviceAttributes {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Param {
     name: String,
-    data_type: String,
+    data_type: ParamDataType,
     properties: Vec<String>,
     #[serde(rename = "type")]
     param_type: ParamTypes,
@@ -132,39 +178,6 @@ pub enum ParamTypes {
     Saturation,
     #[serde(rename = "esp.param.scenes")]
     Scene,
-}
-
-#[derive(Debug)]
-pub enum ParamDataType {
-    // #[serde(rename="bool")]
-    Boolean(bool),
-    // #[serde(rename="int")]
-    Integer(i64),
-    // #[serde(rename="float")]
-    Float(f64),
-    None,
-}
-
-impl From<serde_json::Value> for ParamDataType {
-    fn from(value: serde_json::Value) -> Self {
-        match value {
-            // Value::Null => todo!(),
-            Value::Bool(bool) => Self::Boolean(bool),
-            Value::Number(num) => {
-                if num.is_i64() {
-                    Self::Integer(num.as_i64().unwrap())
-                } else if num.is_f64() {
-                    Self::Float(num.as_f64().unwrap())
-                } else {
-                    Self::None
-                }
-            }
-            // Value::String(_) => todo!(),
-            // Value::Array(_) => todo!(),
-            // Value::Object(_) => todo!(),
-            _ => Self::None,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -197,6 +210,7 @@ impl<'a> Node<'a> {
             info,
             attributes,
             devices: Vec::new(),
+            services: Vec::new(),
         }
     }
 
@@ -204,13 +218,31 @@ impl<'a> Node<'a> {
         self.devices.push(device);
     }
 
-    pub fn exeute_device_callback(&self, device_name: &str, params: HashMap<String, Value>) {
+    pub fn add_service(&mut self, service: Service<'a>) {
+        self.services.push(service);
+    }
+
+    pub fn exeute_device_callback(&self, device_name: &str, params: &HashMap<String, Value>) {
+        let mut found = false;
         for device in self.devices.iter() {
             // HIGHLY(x2) inefficient (but it works)
             if device.get_name() == device_name {
                 device.execute_callback(params);
+                found = true;
                 break;
             }
+        }
+        if !found {
+            for service in self.services.iter() {
+                if service.get_name() == device_name {
+                    service.execute_callback(params, &self);
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if !found {
+            log::info!("Received a request to execute callback for unknown device/service {}", device_name);
         }
     }
 
@@ -220,31 +252,15 @@ impl<'a> Node<'a> {
             let device_initial_params = device.get_initial_params();
             device_params.insert(&device.name, device_initial_params);
         };
+        for service in &self.services {
+            let service_initial_params = service.get_initial_params();
+            device_params.insert(&service.name, service_initial_params);
+        }
 
         // let params_init = serde_json::to_value(device_params).unwrap();
 
         // params_init.to_string()
         device_params
-
-    }
-
-    pub fn enable_scenes(&mut self) {
-        let mut scenes = Device::new(
-            "Scenes",
-            DeviceType::Scenes,
-            "Scenes",
-            Vec::new(),
-        );
-        scenes.add_param(Param::new_without_ui(
-            "Scenes",
-            "Array",
-            // Extremely ABSURD way don't know any other way
-            Value::String(serde_json::to_string(unsafe { &SCENES }).unwrap()),
-            ParamTypes::Scene,
-            Vec::new(),
-        ));
-        scenes.register_callback(Box::new(|params| crate::scenes::scenecb(params)));
-        self.add_device(scenes);
     }
 }
 
@@ -273,7 +289,7 @@ impl<'a> Device<'a> {
         self.callback = Some(Box::new(cb));
     }
 
-    pub fn execute_callback(&self, params: HashMap<String, /* ParamDataType */ Value>) {
+    pub fn execute_callback(&self, params: &HashMap<String, /* ParamDataType */ Value>) {
         let cb: &DeviceCbType;
         if self.callback.is_some() {
             cb = self.callback.as_ref().unwrap();
@@ -291,6 +307,66 @@ impl<'a> Device<'a> {
     pub fn get_initial_params(&self) -> HashMap<&str, &Value>{
         let mut params_value = HashMap::<&str, &Value>::new();
         for param in &self.params{
+            if param.properties.contains(&"persist".to_string()) {
+                let mut nvs = Nvs::new(NvsPartition::new("nvs").unwrap(), &self.name).unwrap();
+                if let Some(p) = nvs.get_bytes(&param.name) {
+                    let json_string: String = String::from_utf8(p).expect("Failed to convert to string");
+                    param.initial_state = from_str(&json_string).expect("Failed to convert to Value");
+                }
+                else {
+                    nvs.set_bytes(&param.name, &param.initial_state.to_string().into_bytes());
+                }
+            }
+            params_value.insert(&param.name, &param.initial_state);
+        }
+
+        // serde_json::to_value(params_value).unwrap().to_string()
+        params_value
+    }
+}
+
+impl<'a> Service<'a> {
+    pub fn new(
+        name: &str,
+        device_type: DeviceType,
+        primary_param: &str,
+        attributes: Vec<DeviceAttributes>,
+    ) -> Self {
+        Self {
+            name: name.to_owned(),
+            device_type,
+            primary_param: primary_param.to_owned(),
+            attributes,
+            params: vec![],
+            callback: None,
+        }
+    }
+
+    pub fn add_param(&mut self, param: Param) {
+        self.params.push(param);
+    }
+
+    pub fn register_callback(&mut self, cb: ServiceCbType<'a>) {
+        self.callback = Some(Box::new(cb));
+    }
+
+    pub fn execute_callback(&self, params: &HashMap<String, /* ParamDataType */ Value>, node: &Node) {
+        let cb: &ServiceCbType;
+        if self.callback.is_some() {
+            cb = self.callback.as_ref().unwrap();
+        } else {
+            return;
+        }
+        cb(params);
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn get_initial_params(&self) -> HashMap<&str, &Value>{
+        let mut params_value = HashMap::<&str, &Value>::new();
+        for param in &self.params{
             params_value.insert(&param.name, &param.initial_state);
         }
 
@@ -302,7 +378,7 @@ impl<'a> Device<'a> {
 impl Param {
     pub fn new(
         name: &str,
-        data_type: &str,
+        data_type: ParamDataType,
         initial_state: Value,
         param_type: ParamTypes,
         ui_type: UiTypes,
@@ -310,7 +386,7 @@ impl Param {
     ) -> Param {
         Param {
             name: name.to_owned(),
-            data_type: data_type.to_owned(),
+            data_type,
             properties,
             param_type,
             bounds: None,
@@ -321,14 +397,14 @@ impl Param {
 
     pub fn new_without_ui(
         name: &str,
-        data_type: &str,
+        data_type: ParamDataType,
         initial_state: Value,
         param_type: ParamTypes,
         properties: Vec<String>
     ) -> Param {
         Param {
             name: name.to_owned(),
-            data_type: data_type.to_owned(),
+            data_type,
             properties,
             param_type,
             bounds: None,
@@ -344,7 +420,7 @@ impl Param {
     pub fn new_power(name: &str, initial_state: bool) -> Self {
         Self::new(
             name,
-            "bool",
+            ParamDataType::Boolean,
             Value::Bool(initial_state),
             ParamTypes::Power,
             UiTypes::Toggle,
@@ -355,7 +431,7 @@ impl Param {
     pub fn new_brighness(name: &str, initial_state: u32) -> Self {
         let mut param = Self::new(
             name,
-            "int",
+            ParamDataType::Integer,
             Value::Number(initial_state.into()),
             ParamTypes::Brightness,
             UiTypes::Slider,
@@ -369,7 +445,7 @@ impl Param {
     pub fn new_hue(name: &str, initial_state: u32) -> Self {
         let mut param = Self::new(
             name,
-            "int",
+            ParamDataType::Integer,
             Value::Number(initial_state.into()),
             ParamTypes::Hue,
             UiTypes::HueSlider,
@@ -383,7 +459,7 @@ impl Param {
     pub fn new_satuation(name: &str, initial_state: u32) -> Self {
         let mut param = Self::new(
             name, 
-            "int",
+            ParamDataType::Integer,
             initial_state.into(),
             ParamTypes::Saturation,
             UiTypes::Slider, 

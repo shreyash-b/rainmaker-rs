@@ -12,7 +12,8 @@ use components::{
     wifi::{WifiClientConfig, WifiMgr},
 };
 use error::RMakerError;
-use node::Node;
+use log::{info, error};
+use node::{Node, Param, Service};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -162,6 +163,24 @@ where
         )
     }
 
+    pub fn report_param(&self, device_name: &str, params: String) {
+        log::info!("Rainmaker: reporting params");
+        let updated_params = json!({
+            device_name: params
+        });
+
+        log::info!("reporting: {}", updated_params.to_string());
+        let mqtt = self.mqtt_client.as_ref().unwrap();
+        let mut mqtt = mqtt.lock().unwrap();
+
+        let local_params_topic = format!("node/{}/params/local", self.node_id.clone());
+        mqtt.publish(
+            &local_params_topic,
+            &mqtt::QoSLevel::AtLeastOnce,
+            updated_params.to_string().into_bytes(),
+        )
+    }
+
     pub fn register_node(&mut self, node: node::Node<'a>) {
         self.node = Some(node.into());
     }
@@ -200,6 +219,113 @@ where
         };
 
         Ok(())
+    }
+
+    pub fn enable_scenes(&mut self) {
+        let scenepriv: scenes::ScenePrivData = scenes::ScenePrivData{
+            scenes: Vec::new(),
+            totalscenes: 0,
+        };
+        let mut scenes = Service::new(
+            "Scenes",
+            node::DeviceType::Scenes,
+            "Scenes",
+            Vec::new(),
+        );
+        scenes.add_param(Param::new_without_ui(
+            "Scenes",
+            node::ParamDataType::Array,
+            // Extremely ABSURD way don't know any other way
+            Value::String(serde_json::to_string(&scenepriv).unwrap()),
+            node::ParamTypes::Scene,
+            vec!("read".to_string(), "write".to_string(), "persist".to_string()),
+        ));
+        if let Some(node) = &self.node {
+            scenes.register_callback(Box::new(|params|self.scenecb(scenepriv, params.clone(), &node)));
+            node.add_service(scenes);
+        }
+    }
+
+    fn scenecb(&self, scenespriv: scenes::ScenePrivData, params: HashMap<String, Value>, node: &Node) {
+        info!("scenes: {:?}", params);
+        if let Some(scenes) = params.get("Scenes") {
+            match scenes {
+                Value::Array(scenes_array) => {
+                    for scene in scenes_array {
+                        match scene {
+                            Value::Object(scene) => {
+                                let operation = scene
+                                   .get("operation")
+                                   .and_then(|v| v.as_str())
+                                   .expect("Expected operation field to be a string.");
+                                let id = scene
+                                   .get("id")
+                                   .and_then(|v| v.as_str())
+                                   .expect("Expected id field to be a string.");
+                                let name = scene
+                                   .get("name")
+                                   .and_then(|v| v.as_str())
+                                   .expect("Expected name field to be a string.");
+                                let action: HashMap<String, Value> = scene
+                                   .get("action")
+                                   .and_then(|v| v.as_object())
+                                   .expect("Expected action field to be a object.")
+                                   .clone()
+                                   .into_iter()
+                                   .collect();
+                                let info = scene
+                                   .get("info")
+                                   .and_then(|v| v.as_str())
+                                   .expect("Expected info field to be a string.");
+    
+    
+                                // Need to this as collect can't know the type unless specified
+                                let param_action: HashMap<String, HashMap<String, Value>> = action
+                                    .into_iter()
+                                    .map(|(action, value)| {
+                                        let v = value.as_object().expect("Expected").clone().into_iter().collect();
+                                        (action, v)
+                                    })
+                                    .collect();
+    
+                                match operation {
+                                    "add" => {
+                                        scenespriv.add_scene_to_list(scenes::Scene {
+                                            name: name.to_string(),
+                                            id: id.to_string(),
+                                            info: info.to_string(),
+                                            action: param_action,
+                                            operation: operation.to_string(),
+                                        });
+                                    }
+                                    "remove" => {
+                                        scenespriv.remove_scene_from_list(id.to_string());
+                                    }
+                                    "edit" => {
+                                        scenespriv.edit(id.to_string(), param_action);
+                                    }
+                                    "activate" => {
+                                        scenespriv.activate(id.to_string(), node);
+                                    }
+                                    "deactivate" => {
+                                        scenespriv.deactivate(id.to_string(), node);
+                                    }
+                                    _ => {
+                                        info!("Unknown operation: {}", operation);
+                                    }
+                                }
+                            }
+                            _ => {
+                                error!("Could not deserialize the scene params");
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    error!("Could not deserialize the scene params array");
+                }
+            }
+        }
     }
 
     fn mqtt_init(&mut self) -> Result<(), RMakerError> {
@@ -287,6 +413,10 @@ where
         Ok(())
     }
 
+    fn get_node (self) -> Option<Arc<Node<'a>>> {
+        self.node
+    }
+
     #[cfg(target_os = "linux")]
     fn linux_init_claimdata() {
         let fctry_partition = NvsPartition::new("fctry").unwrap();
@@ -342,7 +472,7 @@ fn mqtt_callback<'a>(event: MqttEvent, node: Arc<Node<'a>>) {
             let devices = received_val.keys();
             for device in devices {
                 let params = received_val.get(device).unwrap().to_owned();
-                node.exeute_device_callback(&device, params);
+                node.exeute_device_callback(&device, &params);
             }
         }
         _ => {
