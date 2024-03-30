@@ -9,6 +9,7 @@ A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux us
 
 - Follow the [Prerequisites](https://github.com/esp-rs/esp-idf-template#prerequisites) section in the ``` esp-idf-template``` crate.
 - Install Protobuf compiler on your system.
+- Install ESP-Rainmaker app on your phone.
 
 
 ## Get rainmaker-rs
@@ -72,6 +73,9 @@ cargo run --target x86_64-unknown-linux-gnu
 OR
 cargo run_linux
 ```
+
+Once the example is running, open the rainmaker mobile application and follow on-screen instructions for adding device 
+
 
 When running for the first time, you'll need to set ```RMAKER_CLAIMDATA_PATH``` environment variable to the folder containing your claimdata(mentioned in before running section)
 
