@@ -10,6 +10,9 @@ use crate::utils::WrappedInArcMutex;
 
 const PROV_MGR_VER: &str = "v1.1";
 const LOGGER_TAH: &str = "wifi_prov";
+const CAP_WIFI_SCAN: &str = "wifi_scan"; // wifi scan capability
+const CAP_NO_SEC: &str = "no_sec"; // capability signifying sec0
+const CAP_NO_POP: &str = "no_pop"; // no PoP in case of sec1 and sec2
 
 #[derive(Default)]
 pub enum WifiProvScheme {
@@ -35,6 +38,7 @@ impl<'a> WifiProvisioningMgr<'a> {
         wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
         config: WifiProvisioningConfig,
     ) -> Self {
+        let version_info = Self::get_version_info(&config.security);
         let protocomm_config = ProtocommConfig {
             transport: ProtocomTransportConfig::Httpd(HttpConfiguration::default()),
             security: config.security,
@@ -47,15 +51,15 @@ impl<'a> WifiProvisioningMgr<'a> {
             wifi_client,
             device_name: config.device_name,
         };
-        prov_mgr.init();
+        prov_mgr.init(version_info);
 
         prov_mgr
     }
 
-    pub fn init(&mut self) {
+    pub fn init(&mut self, version_info: serde_json::Value) {
         let device_name = &self.device_name;
         self.init_ap(device_name);
-        self.register_listeners();
+        self.register_listeners(version_info);
     }
 
     pub fn start(&self) -> Result<(), RMakerError> {
@@ -92,28 +96,43 @@ impl<'a> WifiProvisioningMgr<'a> {
         }
     }
 
-    fn get_version_info(&self) -> serde_json::Value {
+    fn get_version_info(sec_config: &ProtocommSecurity) -> serde_json::Value {
+        let mut wifi_capabilities = vec![CAP_WIFI_SCAN];
+        let sec_ver = match sec_config {
+            ProtocommSecurity::Sec0(_) => {
+                wifi_capabilities.push(CAP_NO_SEC);
+                // return sec0
+                0
+            }
+            ProtocommSecurity::Sec1(sec1_inner) => {
+                if sec1_inner.pop.is_none() {
+                    wifi_capabilities.push(CAP_NO_POP)
+                };
+                // return sec1
+                1
+            }
+        };
+
         let ver_info = json!({
             "prov": {
                 "ver": PROV_MGR_VER,
-                "sec_ver": 1,
-                "cap": ["wifi_scan"]
+                "sec_ver": sec_ver,
+                "cap": wifi_capabilities
             }
         });
 
         ver_info
     }
 
-    fn register_listeners(&mut self) {
+    fn register_listeners(&mut self, version_info: serde_json::Value) {
         log::debug!(target: LOGGER_TAH, "adding provisioning listeners");
         let wifi_driv_prov_config = self.wifi_client.clone();
         let wifi_driv_prov_scan = self.wifi_client.clone();
 
-        let version_str = self.get_version_info();
         let pc = &mut self.protocomm;
         pc.set_security_endpoint("prov-session").unwrap(); // hardcoded sec params for sec0
 
-        pc.set_version_endpoint("proto-ver", version_str.to_string())
+        pc.set_version_endpoint("proto-ver", version_info.to_string())
             .unwrap();
 
         pc.register_endpoint("prov-config", move |ep, data| -> Vec<u8> {

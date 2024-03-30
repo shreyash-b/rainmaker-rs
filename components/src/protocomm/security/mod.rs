@@ -8,6 +8,7 @@ pub(crate) trait SecurityTrait: Default {
 
 pub enum ProtocommSecurity {
     Sec0(sec0::Sec0),
+    // wrap sec1 in box due to difference in runtime sizes of sec0 and sec1
     Sec1(Box<sec1::Sec1>),
 }
 
