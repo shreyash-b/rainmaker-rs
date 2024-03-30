@@ -1,11 +1,9 @@
 use components::http::HttpConfiguration;
-use serde_json::json;
-use std::marker::PhantomData;
-
 use components::persistent_storage::Nvs;
 use components::persistent_storage::NvsPartition;
 use components::protocomm::*;
 use components::wifi::*;
+use serde_json::json;
 
 use crate::error::RMakerError;
 use crate::utils::WrappedInArcMutex;
@@ -30,7 +28,6 @@ pub struct WifiProvisioningMgr<'a> {
     protocomm: Protocomm<'a>,
     wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
     device_name: String,
-    _phantom: PhantomData<&'a ()>, // for compiler to not complain about lifetime parameter
 }
 
 impl<'a> WifiProvisioningMgr<'a> {
@@ -49,7 +46,6 @@ impl<'a> WifiProvisioningMgr<'a> {
             protocomm,
             wifi_client,
             device_name: config.device_name,
-            _phantom: PhantomData,
         };
         prov_mgr.init();
 
