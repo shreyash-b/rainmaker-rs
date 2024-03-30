@@ -8,7 +8,7 @@ use components::protocomm::*;
 use components::wifi::*;
 
 use crate::error::RMakerError;
-use crate::utils::{wrap_in_arc_mutex, WrappedInArcMutex};
+use crate::utils::WrappedInArcMutex;
 
 const PROV_MGR_VER: &str = "v1.1";
 const LOGGER_TAH: &str = "wifi_prov";
@@ -27,7 +27,7 @@ pub struct WifiProvisioningConfig {
 }
 
 pub struct WifiProvisioningMgr<'a> {
-    protocomm: WrappedInArcMutex<Protocomm<'a>>,
+    protocomm: Protocomm<'a>,
     wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
     device_name: String,
     _phantom: PhantomData<&'a ()>, // for compiler to not complain about lifetime parameter
@@ -43,10 +43,10 @@ impl<'a> WifiProvisioningMgr<'a> {
             security: config.security,
         };
 
-        let protocomm_new = wrap_in_arc_mutex(Protocomm::new(protocomm_config));
+        let protocomm = Protocomm::new(protocomm_config);
 
         let mut prov_mgr = Self {
-            protocomm: protocomm_new,
+            protocomm,
             wifi_client,
             device_name: config.device_name,
             _phantom: PhantomData,
@@ -74,11 +74,11 @@ impl<'a> WifiProvisioningMgr<'a> {
         Ok(())
     }
 
-    pub fn add_endpoint<T>(&self, endpoint: &str, callback: T)
+    pub fn add_endpoint<T>(&mut self, endpoint: &str, callback: T)
     where
         T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
     {
-        let mut pc = self.protocomm.lock().unwrap();
+        let pc = &mut self.protocomm;
 
         pc.register_endpoint(endpoint, callback).unwrap();
     }
@@ -108,15 +108,15 @@ impl<'a> WifiProvisioningMgr<'a> {
         ver_info
     }
 
-    fn register_listeners(&self) {
+    fn register_listeners(&mut self) {
         log::debug!(target: LOGGER_TAH, "adding provisioning listeners");
         let wifi_driv_prov_config = self.wifi_client.clone();
         let wifi_driv_prov_scan = self.wifi_client.clone();
 
-        let mut pc = self.protocomm.lock().unwrap();
+        let version_str = self.get_version_info();
+        let pc = &mut self.protocomm;
         pc.set_security_endpoint("prov-session").unwrap(); // hardcoded sec params for sec0
 
-        let version_str = self.get_version_info();
         pc.set_version_endpoint("proto-ver", version_str.to_string())
             .unwrap();
 
