@@ -27,7 +27,7 @@ espflash erase-flash
 ```
 2. Use [rainmaker cli](https://rainmaker.espressif.com/docs/cli-setup.html) to perform manual claiming on ESP devices
 ```bash
-./rainmaker.py claim /dev/ttyUSB0
+./rainmaker.py claim /dev/ttyUSB0 --addr 0x3FA000
 ```
 3. Navigate to rainmaker-rs directory
 ```bash
