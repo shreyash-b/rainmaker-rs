@@ -3,14 +3,13 @@ use crate::protocomm::transports::TransportTrait;
 use crate::protocomm::{protocomm_req_handler, CallbackData};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use super::TransportCallbackType;
 use crate::utils::WrappedInArcMutex;
 
 pub(crate) struct TransportHttpd<'a> {
-    http_server: Rc<Mutex<HttpServer<'a>>>,
+    http_server: HttpServer<'a>,
     cb_data: Option<WrappedInArcMutex<CallbackData>>,
     phantom: PhantomData<&'a ()>,
 }
@@ -19,7 +18,7 @@ impl<'a> TransportHttpd<'a> {
     pub fn new(config: HttpConfiguration) -> Self {
         let http_server = HttpServer::new(&config).unwrap();
         Self {
-            http_server: Rc::new(Mutex::new(http_server)),
+            http_server,
             phantom: PhantomData,
             cb_data: None,
         }
@@ -31,8 +30,8 @@ impl<'a> TransportHttpd<'a> {
 }
 
 impl<'a> TransportTrait for TransportHttpd<'a> {
-    fn add_endpoint(&self, ep_name: &str, cb: impl TransportCallbackType) {
-        let mut http_server = self.http_server.lock().unwrap();
+    fn add_endpoint(&mut self, ep_name: &str, cb: impl TransportCallbackType) {
+        let http_server = &mut self.http_server;
         let ep = "/".to_string() + ep_name;
         // doing this works for small number of arguments
         // but cloning it for every endpoint isn't most efficient solution

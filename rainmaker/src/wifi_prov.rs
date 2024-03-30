@@ -78,7 +78,7 @@ impl<'a> WifiProvisioningMgr<'a> {
     where
         T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
     {
-        let pc = self.protocomm.lock().unwrap();
+        let mut pc = self.protocomm.lock().unwrap();
 
         pc.register_endpoint(endpoint, callback).unwrap();
     }
@@ -113,7 +113,7 @@ impl<'a> WifiProvisioningMgr<'a> {
         let wifi_driv_prov_config = self.wifi_client.clone();
         let wifi_driv_prov_scan = self.wifi_client.clone();
 
-        let pc = self.protocomm.lock().unwrap();
+        let mut pc = self.protocomm.lock().unwrap();
         pc.set_security_endpoint("prov-session").unwrap(); // hardcoded sec params for sec0
 
         let version_str = self.get_version_info();
