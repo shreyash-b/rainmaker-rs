@@ -8,8 +8,6 @@ pub mod wifi_prov;
 use components::{
     mqtt::{self, MqttClient, MqttConfiguration, MqttEvent, TLSconfiguration},
     persistent_storage::{Nvs, NvsPartition},
-    protocomm::ProtocommSecurity,
-    wifi::WifiMgr,
 };
 use error::RMakerError;
 use node::Node;
@@ -22,12 +20,6 @@ use std::{
     time::Duration,
 };
 
-#[cfg(any(target_os = "espidf", feature = "linux_wifi"))]
-use wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
-
-#[cfg(any(target_os = "espidf", feature = "linux_wifi"))]
-use components::wifi::WifiClientConfig;
-
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
 
@@ -36,8 +28,6 @@ pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
 #[allow(dead_code)]
 pub struct Rainmaker<'a> {
     node_id: String,
-    wifi_driv: WrappedInArcMutex<WifiMgr<'a>>,
-    prov_mgr: Option<wifi_prov::WifiProvisioningMgr<'a>>,
     // remove this later when mqtt client passing works for user_cloud_mapping on esp
     mqtt_client: Option<WrappedInArcMutex<MqttClient<'a>>>,
     node: Option<Arc<node::Node<'a>>>,
@@ -53,8 +43,6 @@ where
         #[cfg(target_os = "linux")]
         Rainmaker::linux_init_claimdata();
 
-        let wifi_driv = WifiMgr::new()?;
-
         let fctry_partition = NvsPartition::new("fctry").unwrap();
         let fctry_nvs = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
 
@@ -62,8 +50,6 @@ where
 
         Ok(Self {
             node_id,
-            wifi_driv: Arc::new(Mutex::new(wifi_driv)),
-            prov_mgr: None,
             // mqtt_client: Arc::new(Mutex::new(mqtt_client)),
             mqtt_client: None,
             node: None,
@@ -166,6 +152,7 @@ where
         self.node = Some(node.into());
     }
 
+    /*
     #[cfg(any(target_os = "espidf", feature = "linux_wifi"))]
     pub fn init_wifi(&mut self, sec_config: ProtocommSecurity) -> Result<(), RMakerError> {
         let provisioned_status = WifiProvisioningMgr::get_provisioned_creds();
@@ -213,6 +200,7 @@ where
         log::info!("Running on linux.. Skipping WiFi setup");
         Ok(())
     }
+    */
 
     fn mqtt_init(&mut self) -> Result<(), RMakerError> {
         if self.mqtt_client.is_some() {
@@ -265,6 +253,7 @@ where
         Ok(())
     }
 
+    /* 
     #[cfg(any(target_os = "espidf", feature = "linux_wifi"))]
     fn start_wifi_provisioning(&mut self) -> Result<(), RMakerError> {
         let prov_mgr = self.prov_mgr.as_mut().unwrap();
@@ -292,6 +281,7 @@ where
         prov_mgr.start().unwrap();
         Ok(())
     }
+    */
 
     #[cfg(target_os = "linux")]
     fn linux_init_claimdata() {
@@ -360,7 +350,10 @@ fn mqtt_callback(event: MqttEvent, node: Arc<Node<'_>>) {
     }
 }
 
-pub fn cloud_user_assoc_callback(
+
+
+
+fn cloud_user_assoc_callback(
     _ep: String,
     data: Vec<u8>,
     node_id: String,
