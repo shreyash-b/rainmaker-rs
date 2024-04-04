@@ -54,7 +54,7 @@ impl MqttClient<rumqttc::Client> {
         config: &MqttConfiguration,
         tlscerts: &'static TLSconfiguration,
         callback: Box<dyn Fn(MqttEvent) + Send>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, Error> {
         let mut option = rumqttc::MqttOptions::new(config.clientid, config.host, config.port);
         option.transport();
 
@@ -81,10 +81,13 @@ impl MqttClient<rumqttc::Client> {
         Ok(Self { client })
     }
 
-    pub fn publish(&mut self, topic: &str, qos: &QoSLevel, payload: Vec<u8>) {
+    pub fn publish(&mut self, topic: &str, qos: &QoSLevel, payload: Vec<u8>) -> u32 {
         self.client
             .publish(topic, qos.into(), false, payload)
             .expect("unable to publish");
+
+        // return 0 to signify msg_id returning not supported
+        0
     }
 
     pub fn subscribe(&mut self, topic: &str, qos: &QoSLevel) -> Result<(), Error> {

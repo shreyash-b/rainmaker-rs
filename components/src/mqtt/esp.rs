@@ -38,7 +38,7 @@ impl<'a> MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'a>> {
         config: &MqttConfiguration,
         tls_certs: &'static TLSconfiguration,
         callback: Box<dyn Fn(MqttEvent) + Send + Sync>,
-    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Self, Error> {
         let client_cert = std::ffi::CStr::from_bytes_with_nul(tls_certs.client_cert).unwrap();
         let private_key = std::ffi::CStr::from_bytes_with_nul(tls_certs.private_key).unwrap();
         let server_cert = std::ffi::CStr::from_bytes_with_nul(tls_certs.server_cert).unwrap();
@@ -75,10 +75,13 @@ impl<'a> MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'a>> {
         Ok(Self { client })
     }
 
-    pub fn publish(&mut self, topic: &str, qos: &QoSLevel, payload: Vec<u8>) {
-        self.client
+    pub fn publish(&mut self, topic: &str, qos: &QoSLevel, payload: Vec<u8>) -> u32 {
+        let msg_id = self
+            .client
             .publish(topic, qos.into(), false, payload.as_ref())
             .expect("unable to publish");
+
+        msg_id
     }
 
     pub fn subscribe(&mut self, topic: &str, qos: &QoSLevel) -> Result<(), Error> {

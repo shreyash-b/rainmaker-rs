@@ -24,3 +24,10 @@ impl From<log::SetLoggerError> for RMakerError {
         Self(msg)
     }
 }
+
+impl From<std::io::Error> for RMakerError {
+    fn from(value: std::io::Error) -> Self {
+        let msg = value.to_string();
+        Self(msg)
+    }
+}
