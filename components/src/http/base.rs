@@ -59,7 +59,7 @@ impl Default for HttpConfiguration {
             port: 80,
             // to avoid running prog as sudo during dev
             #[cfg(target_os = "linux")]
-            port: 8081,
+            port: 8080,
             addr: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         }
     }

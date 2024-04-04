@@ -1,87 +1,56 @@
-use crate::http::*;
-
 use crate::protocomm::*;
-
-pub enum LocalCtrlProtoSec {
-    ProtocomSec0 = 0,
-    ProtocomSec1,
-    ProtocomSec2,
-    ProtocomSecCustom,
+pub enum PropertyTypes {
+    NodeConfig = 0,
+    NodeParams,
 }
 
-pub struct LocalCtrlProtoSecConfig {
-    pub version: u8,
+pub enum PropertyFlags {
+    FlagReadonly = (1 << 0)
 }
 
-pub struct LocalCtrlConfig {
-    pub transport: HttpConfiguration,
-    pub handlers: LocalCtrlHandlers,
-    pub max_properties: u8,
+pub struct LocalCtrlConfig<'a> {
+    pub protocom: Protocomm<'a>,
 }
 
-// pub struct LocalCtrlTransportConfig {
-//     pub httpd: HttpConfiguration,
-//     pub ble: BleConfiguration, // To be define
-// }
-
-pub struct LocalCtrlHandlers {
-    pub get_prop_values: fn(),
-    pub set_prop_values: fn(),
-}
-
-impl LocalCtrlConfig {
+impl LocalCtrlConfig<'_> {
     pub fn local_ctrl_start(&mut self) -> anyhow::Result<(), anyhow::Error> {
     
-        let mut server = HttpServer::new(&self.transport).unwrap();
+        let pc = &self.protocom;
         log::info!("adding local_ctrl listeners");
 
-        server.add_listener(
-            "/esp_local_ctrl/".to_string(), 
-            HttpMethod::POST, 
-            Box::new(local_ctrl_handler)
-        );
+        pc.set_security_endpoint("esp_local_ctrl/session").unwrap();
 
-        server.add_listener(
-            "/esp_local_ctrl/session".to_string(), 
-            HttpMethod::POST, 
-            Box::new(prov_session_callback)
-        );
-       
-        server.add_listener(
-            "/esp_local_ctrl/version".to_string(), 
-            HttpMethod::POST, 
-            Box::new(version_handler)
-        );
-    
-        server.add_listener(
-            "/esp_local_ctrl/control".to_string(), 
-            HttpMethod::POST, 
-            Box::new(control_handler)
-        );
+        pc.register_endpoint("esp_local_ctrl/control", control_handler)
+            .unwrap();
 
-        server.listen();
+        pc.register_endpoint("esp_local_ctrl/version", version_handler)
+            .unwrap();
+
+        pc.start();
+
         Ok(())
     }
 
 }
 
-pub fn local_ctrl_handler(_req: HttpRequest) -> HttpResponse {
-    HttpResponse::from_bytes("Local Control Started")
+pub fn version_handler(
+    _ep: String,
+    data: Vec<u8>
+) -> Vec<u8> {
+
+    let req_proto = LocalCtrlMessage::decode(&*data).unwrap();
+
+    log::info!("local_ctrl_version_payload: {:?}", req_proto);
+
+    "version url Local control version v1.0".as_bytes().to_vec()
 }
 
-pub fn version_handler(_req: HttpRequest) -> HttpResponse {
-    HttpResponse::from_bytes("version url Local control version v1.0".as_bytes())
-}
+pub fn control_handler(
+    _ep: String,
+    data: Vec<u8>
+) -> Vec<u8> {
 
-pub fn session_handler(_req: HttpRequest) -> HttpResponse {
-    HttpResponse::from_bytes("Session Established".as_bytes())
-}
-
-pub fn control_handler(mut req: HttpRequest) -> HttpResponse {
-
-    let req_data = req.data();
-
-    let req_proto = LocalCtrlMessage::decode(&*req_data).unwrap();
+    let req_proto = LocalCtrlMessage::decode(&*data).unwrap();
 
     log::info!("local_ctrl_payload: {:?}", req_proto);
 
@@ -107,13 +76,13 @@ pub fn control_handler(mut req: HttpRequest) -> HttpResponse {
         _ => vec![]
     };
 
-    HttpResponse::from_bytes(&*res)
+    res
 }
 
 fn handle_cmd_get_property_count() -> Vec<u8> {
     let mut resp_payload = RespGetPropertyCount::default();
     resp_payload.status = Status::Success.into();
-    resp_payload.count = 1;
+    resp_payload.count = 2;
 
     let mut resp = LocalCtrlMessage::default();
     resp.payload = Some(local_ctrl_message::Payload::RespGetPropCount(resp_payload));
@@ -163,19 +132,4 @@ fn handle_cmd_set_property_values(req_payload: local_ctrl_message::Payload) -> V
         }
         _ => unreachable!() 
     }
-}
-
-pub(crate) fn prov_session_callback(mut _req: HttpRequest) -> HttpResponse {
-    let mut res_proto = SessionData::default();
-    res_proto.set_sec_ver(SecSchemeVersion::SecScheme0);
-    res_proto.proto = Some(session_data::Proto::Sec0(Sec0Payload {
-        msg: Sec0MsgType::S0SessionResponse.into(),
-        payload: Some(sec0_payload::Payload::Sr(S0SessionResp {
-            status: Status::Success.into(),
-        })),
-    }));
-
-    let res_data = res_proto.encode_to_vec();
-
-    HttpResponse::from_bytes(res_data)
 }

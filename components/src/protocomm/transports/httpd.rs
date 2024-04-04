@@ -20,6 +20,14 @@ impl<'a> TransportHttpd<'a> {
         }
     }
 
+    pub fn new_1() -> Self {
+        let http_server = HttpServer::new(&HttpConfiguration{port:8080, ..Default::default()}).unwrap();
+        Self {
+            http_server: Arc::new(Mutex::new(http_server)),
+            phantom: PhantomData::default(),
+        }
+    }
+
 }
 
 impl<'a> TransportTrait<'a> for TransportHttpd<'a> {

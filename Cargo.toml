@@ -1,5 +1,6 @@
 [workspace]
-members = ["components", "rainmaker", "led_switch"]
+members = ["components", "rainmaker"]
+exclude = ["led_switch"]
 resolver = "2"
 
 [profile.dev]

@@ -85,4 +85,8 @@ When running for the first time, you'll need to set ```RMAKER_CLAIMDATA_PATH``` 
 
 - **When running on ESP32 for first time, on initial boot it will start wifi provisioning and user node mapping.** 
 - **After performing wifi provisioning using Rainmaker Android application restart the ESP32 for normal functioning**
+
+
+#### Local ctrl note (Will be removed later)
+- **Read the readme file in lede switch for local ctrl feature**
 ---
