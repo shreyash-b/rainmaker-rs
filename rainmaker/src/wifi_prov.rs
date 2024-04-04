@@ -6,6 +6,7 @@ use components::wifi::*;
 use serde_json::json;
 
 use crate::error::RMakerError;
+use crate::utils::wrap_in_arc_mutex;
 use crate::utils::WrappedInArcMutex;
 
 const PROV_MGR_VER: &str = "v1.1";
@@ -31,6 +32,7 @@ pub struct WifiProvisioningMgr<'a> {
     protocomm: Protocomm<'a>,
     wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
     device_name: String,
+    version_string: String,
 }
 
 impl<'a> WifiProvisioningMgr<'a> {
@@ -46,23 +48,27 @@ impl<'a> WifiProvisioningMgr<'a> {
 
         let protocomm = Protocomm::new(protocomm_config);
 
-        let mut prov_mgr = Self {
+        Self {
             protocomm,
             wifi_client,
             device_name: config.device_name,
-        };
-        prov_mgr.init(version_info);
-
-        prov_mgr
+            version_string: version_info,
+        }
     }
 
-    pub fn init(&mut self, version_info: serde_json::Value) {
+    pub fn wrap(wifi_client: WifiMgr<'static>, config: WifiProvisioningConfig) -> Self {
+        Self::new(wrap_in_arc_mutex(wifi_client), config)
+    }
+
+    pub fn init(&mut self) {
         let device_name = &self.device_name;
         self.init_ap(device_name);
-        self.register_listeners(version_info);
+        self.register_listeners(self.version_string.clone());
     }
 
-    pub fn start(&self) -> Result<(), RMakerError> {
+    pub fn start(&mut self) -> Result<(), RMakerError> {
+        self.init();
+        
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         log::debug!(target: LOGGER_TAH, "starting wifi in SoftAP mode");
         wifi_driv.set_client_config(WifiClientConfig::default())?;
@@ -96,7 +102,47 @@ impl<'a> WifiProvisioningMgr<'a> {
         }
     }
 
-    fn get_version_info(sec_config: &ProtocommSecurity) -> serde_json::Value {
+    pub fn reset_wifi_provisioning() -> Result<(), RMakerError> {
+        log::warn!("Resetting WiFi Provisioned Credentials");
+        if Self::get_provisioned_creds().is_none() {
+            log::error!("Abort. WiFi not provisioned");
+            return Err(RMakerError("not provisioned".to_string()));
+        }
+
+        let nvs_partition = NvsPartition::new("nvs");
+        match nvs_partition {
+            Ok(partition) => {
+                let mut namespace = Nvs::new(partition, "wifi_creds")?;
+                namespace.remove("ssid")?;
+                namespace.remove("password")?;
+                Ok(())
+            }
+            Err(_) => {
+                log::error!("NVS partition not found");
+                Err(RMakerError("partition not found".to_owned()))
+            }
+        }
+    }
+
+    pub fn connect(&mut self) -> Result<(), RMakerError> {
+        match Self::get_provisioned_creds() {
+            Some((ssid, pass)) => {
+                let mut wifi = self.wifi_client.lock().unwrap();
+                wifi.set_client_config(WifiClientConfig {
+                    ssid,
+                    password: pass,
+                    ..Default::default()
+                })?;
+                wifi.start()?;
+                wifi.assured_connect();
+            }
+            None => todo!(),
+        }
+
+        Ok(())
+    }
+
+    fn get_version_info(sec_config: &ProtocommSecurity) -> String {
         let mut wifi_capabilities = vec![CAP_WIFI_SCAN];
         let sec_ver = match sec_config {
             ProtocommSecurity::Sec0(_) => {
@@ -121,10 +167,10 @@ impl<'a> WifiProvisioningMgr<'a> {
             }
         });
 
-        ver_info
+        ver_info.to_string()
     }
 
-    fn register_listeners(&mut self, version_info: serde_json::Value) {
+    fn register_listeners(&mut self, version_info: String) {
         log::debug!(target: LOGGER_TAH, "adding provisioning listeners");
         let wifi_driv_prov_config = self.wifi_client.clone();
         let wifi_driv_prov_scan = self.wifi_client.clone();
