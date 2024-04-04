@@ -1,7 +1,10 @@
-#![feature(never_type)]
+#![feature(lazy_cell)]
 
 mod device_led;
 mod device_light;
+
+#[cfg(target_os="espidf")]
+use components::{protocomm::ProtocommSecurity, wifi::WifiMgr};
 use device_led::*;
 use device_light::*;
 
@@ -14,36 +17,70 @@ use esp_idf_svc::hal::{
 use ws2812_esp32_rmt_driver::Ws2812Esp32Rmt;
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+#[cfg(target_os = "espidf")]
+use std::sync::{Arc, Mutex};
 
 use rainmaker::{
-    error::RMakerError,
-    node::{Info, Node},
-    Rainmaker,
+    error::RMakerError, node::{Info, Node}, Rainmaker
 };
+#[cfg(target_os = "espidf")]
+use rainmaker::wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
+
 use serde_json::Value;
 
 fn led_cb(
-    params: HashMap<String, /* ParamDataType */ Value>,
-    driver: &LedDriverType,
-    rmaker: &Mutex<Rainmaker<'static>>,
+    params: HashMap<String, Value>,
 ) {
     log::info!("led: {:?}", params);
-    device_led::handle_led_update(params, driver, rmaker)
+    #[cfg(target_os="espidf")]
+    device_led::handle_led_update(&params);
+    rainmaker::report_params("LED", params);
 }
 
 fn light_cb(
-    params: HashMap<String, /* ParamDataType */ Value>,
-    driver: &LightDriverType,
-    rmaker: &Mutex<Rainmaker<'static>>,
+    params: HashMap<String, Value>,
 ) {
     log::info!("light: {:?}", params);
-    device_light::handle_light_update(params, driver, rmaker);
+    #[cfg(target_os="espidf")]
+    device_light::handle_light_update(&params);
+    rainmaker::report_params("Light", params);
+}
+
+fn initialize_logger() {
+    #[cfg(target_os = "espidf")]
+    esp_idf_svc::log::EspLogger::initialize_default();
+    
+    #[cfg(target_os = "linux")]
+    simple_logger::SimpleLogger::default()
+    .with_level(log::LevelFilter::Info)
+    .init()
+    .unwrap();
+}
+
+#[cfg(target_os="espidf")]
+fn initialize_light_led_drivers(peripherals: Peripherals){
+    let led_driver_local = LedcDriver::new(
+        peripherals.ledc.channel0,
+        LedcTimerDriver::new(
+            peripherals.ledc.timer0,
+            &ledc::config::TimerConfig::default(),
+        )
+        .unwrap(),
+        peripherals.pins.gpio10,
+    )
+    .unwrap();
+    let _ = LED_DRIVER.set(Mutex::new(led_driver_local));
+
+    let light_driver_local =
+        Ws2812Esp32Rmt::new(peripherals.rmt.channel0, peripherals.pins.gpio8).unwrap();
+    let _ = LIGHT_DRIVER.set(Mutex::new(light_driver_local));
+    
 }
 
 fn main() -> Result<(), RMakerError> {
+    initialize_logger();
     std::env::set_var("RUST_BACKTRACE", "1"); // for debugging
-
+    
     // NOTE FOR RUNNING CODE
     // you need your node to be previously provisioned for this code to work
     // for esp: perform the claiming using rainmaker cli [./rainmaker claim] and that should take care of rest
@@ -52,56 +89,48 @@ fn main() -> Result<(), RMakerError> {
     //      Provide this path as RMAKER_CLAIMDATA_PATH environment variable before running rainmaker for the first time on linux
     //      [RMAKER_CLAIMDATA_PATH={YOUR_CLAIMDATA_PATH} cargo run_linux]
     //      This will fetch the relevant data and store using persistent storage
+    
+    let mut rmaker = Rainmaker::new().unwrap();
 
     #[cfg(target_os = "espidf")]
     let peripherals = Peripherals::take().unwrap();
-
-    let led_driver: &device_led::LedDriverType;
-    let light_driver: &device_light::LightDriverType;
-    let _st = "string";
-
     #[cfg(target_os = "espidf")]
-    {
-        let led_driver_local = LedcDriver::new(
-            peripherals.ledc.channel0,
-            LedcTimerDriver::new(
-                peripherals.ledc.timer0,
-                &ledc::config::TimerConfig::default(),
-            )
-            .unwrap(),
-            peripherals.pins.gpio10,
-        )
-        .unwrap();
+    initialize_light_led_drivers(peripherals);
+    
+    #[cfg(target_os="espidf")]
+    let wifi_arc_mutex = Arc::new(Mutex::new(WifiMgr::new()?));
+    
+    #[cfg(target_os="espidf")]
+    let mut prov_mgr = WifiProvisioningMgr::new(
+        wifi_arc_mutex,
+        WifiProvisioningConfig {
+            device_name: "LED_LIGHT".to_owned(),
+            scheme: rainmaker::wifi_prov::WifiProvScheme::SoftAP,
+            security: ProtocommSecurity::default(),
+        },
+    );
 
-        let light_driver_local =
-            Ws2812Esp32Rmt::new(peripherals.rmt.channel0, peripherals.pins.gpio8).unwrap();
-
-        led_driver = Box::leak(Box::new(Mutex::new(led_driver_local)));
-        light_driver = Box::leak(Box::new(Mutex::new(light_driver_local)));
+    
+    #[cfg(target_os="espidf")]
+    match WifiProvisioningMgr::get_provisioned_creds() {
+        Some(_) => {
+            log::warn!("Node already provisioned. Connecting");
+            prov_mgr.connect().unwrap()
+        }
+        None => {
+            log::warn!("Node not provisioned. Starting WiFi Provisioning");
+            rmaker.reg_user_mapping_ep(&mut prov_mgr);
+            prov_mgr.start().unwrap();
+        }
     }
-
-    #[cfg(target_os = "linux")]
-    {
-        led_driver = Box::leak(Box::new(()));
-        light_driver = Box::leak(Box::new(()));
-    }
+    
 
     let mut light_device = create_light_device("Light");
+    light_device.register_callback(Box::new(light_cb));
 
-    let rmaker_mutex = Box::leak(Box::new(Mutex::new(Rainmaker::new()?))); // needed just to keep compiler happy
-
-    #[allow(clippy::mut_mutex_lock)]
-    // clippy suggests using get_mut() here but we don't want to do that
-    let mut rmaker = rmaker_mutex.lock().unwrap();
-
-    light_device.register_callback(Box::new(|params| {
-        light_cb(params, light_driver, rmaker_mutex)
-    }));
-
-    rmaker.init();
 
     let mut led_device = create_led_device("LED");
-    led_device.register_callback(Box::new(|params| led_cb(params, led_driver, rmaker_mutex)));
+    led_device.register_callback(Box::new(led_cb));
 
     let mut node = Node::new(
         rmaker.get_node_id(),

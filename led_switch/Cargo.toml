@@ -16,6 +16,7 @@ rainmaker = { path = "../rainmaker" }
 components = { path = "../components" }
 log = "0.4.20"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+simple_logger = "4.3.3"
 
 [target.'cfg(target_os="espidf")'.dependencies]
 esp-idf-svc = { version = "0.47.3", default-features = false, features = ["binstart"] }

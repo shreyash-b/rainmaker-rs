@@ -1,7 +1,11 @@
+
+#[cfg(target_os="espidf")]
 use std::collections::HashMap;
+#[cfg(target_os="espidf")]
+use std::sync::OnceLock;
 
 use rainmaker::node::*;
-use rainmaker::Rainmaker;
+#[cfg(target_os="espidf")]
 use serde_json::Value;
 #[cfg(target_os = "espidf")]
 use smart_leds::{hsv::hsv2rgb, RGB8};
@@ -29,23 +33,19 @@ static LIGHT_DATA: Mutex<(bool, Hsv)> = Mutex::new((
 )); // power and color
 
 #[cfg(target_os = "espidf")]
-pub type LightDriverType<'a> = Mutex<LedPixelEsp32Rmt<'a, RGB8, LedPixelColorGrb24>>;
+pub(super) static LIGHT_DRIVER: OnceLock<Mutex<LedPixelEsp32Rmt<'_, RGB8, LedPixelColorGrb24>>> = OnceLock::new();
 
-#[cfg(target_os = "linux")]
-pub type LightDriverType = ();
 
 #[cfg(target_os = "espidf")]
-pub fn handle_light_update(
-    params: HashMap<String, Value>,
-    driver: &LightDriverType,
-    rmaker: &Mutex<Rainmaker<'static>>,
+pub fn handle_light_update( 
+    params: &HashMap<String, Value>,
 ) {
     if params.contains_key("Power")
-        || params.contains_key("Hue")
-        || params.contains_key("Saturation")
-        || params.contains_key("Brightness")
+    || params.contains_key("Hue")
+    || params.contains_key("Saturation")
+    || params.contains_key("Brightness")
     {
-        let mut driver = driver.lock().unwrap();
+        let mut driver = LIGHT_DRIVER.get().unwrap().lock().unwrap();
         let mut curr_data = LIGHT_DATA.lock().unwrap();
 
         if let Some(power) = params.get("Power") {
@@ -82,18 +82,7 @@ pub fn handle_light_update(
             let light = std::iter::repeat(hsv2rgb(curr_hsv)).take(1);
             driver.write(light).unwrap();
         }
-
-        report_params(params, rmaker);
     }
-}
-
-#[cfg(target_os = "linux")]
-pub fn handle_light_update(
-    _params: HashMap<String, Value>,
-    _driver: &LightDriverType,
-    rmaker: &Mutex<Rainmaker<'static>>,
-) {
-    report_params(_params, rmaker);
 }
 
 pub fn create_light_device(name: &str) -> Device {
@@ -110,12 +99,6 @@ pub fn create_light_device(name: &str) -> Device {
     light_device.add_param(brightness_param);
 
     light_device
-}
-
-fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'static>>) {
-    let rmaker_lock = rmaker.lock().unwrap();
-    rmaker_lock.report_params("Light", params);
-    drop(rmaker_lock);
 }
 
 #[cfg(target_os = "espidf")]
