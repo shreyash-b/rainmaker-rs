@@ -68,12 +68,12 @@ fn main() -> Result<(), RMakerError> {
                 &ledc::config::TimerConfig::default(),
             )
             .unwrap(),
-            peripherals.pins.gpio10,
+            peripherals.pins.gpio4,
         )
         .unwrap();
 
         let light_driver_local =
-            Ws2812Esp32Rmt::new(peripherals.rmt.channel0, peripherals.pins.gpio8).unwrap();
+            Ws2812Esp32Rmt::new(peripherals.rmt.channel0, peripherals.pins.gpio2).unwrap();
 
         led_driver = Box::leak(Box::new(Mutex::new(led_driver_local)));
         light_driver = Box::leak(Box::new(Mutex::new(light_driver_local)));
@@ -110,7 +110,29 @@ fn main() -> Result<(), RMakerError> {
     rmaker.register_node(node);
     rmaker.init_wifi()?;
     rmaker.start()?;
-    rmaker.local_ctrl_init();
+
+    // let node_id = "hMKvVdMC8eKt6UzoNHTVvj";
+    // let mut mdns_service = esp_idf_svc::mdns::EspMdns::take().unwrap();
+    // mdns_service
+    //     .set_hostname(node_id)
+    //     .unwrap();
+    // mdns_service
+    //     .add_service(
+    //         Some(node_id), 
+    //         "_esp_local_ctrl", 
+    //         "_tcp", 
+    //         8080,
+    //         &[
+    //             ("node_id", "hMKvVdMC8eKt6UzoNHTVvj"), 
+    //             ("version_endpoint", "/esp_local_ctrl/version"), 
+    //             ("session_endpoint", "/esp_local_ctrl/session"), 
+    //             ("control_endpoint", "/esp_local_ctrl/control"),
+    //         ])
+    //     .unwrap();
+
+    // log::info!("node id: {}", node_id);
+
+    let _ = rmaker.local_ctrl_init();
     println!("rmaker done");
     drop(rmaker); // drop the lock so that callbacks can use it
     rainmaker::prevent_drop();

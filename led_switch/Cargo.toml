@@ -23,6 +23,22 @@ esp-idf-svc = { version = "0.47.3", default-features = false, features = ["binst
 ws2812-esp32-rmt-driver = "0.7.1"
 smart-leds = "0.4.0"
 smart-leds-trait = "0.2.1"
+mdns = { path = "../../../projects/mdns"}
+
 
 [build-dependencies]
 embuild = {version = "0.31.4", default-features = false, features = ["espidf"]}
+
+[[package.metadata.esp-idf-sys.extra_components]]
+remote_component = { name = "espressif/mdns", version = "1.2" }
+
+[profile.dev]
+opt-level = "z"
+
+[profile.release]
+opt-level = "z"
+debug = true
+lto = true
+panic = "abort"
+strip = true
+codegen-units = 1
