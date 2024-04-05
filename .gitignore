@@ -3,3 +3,5 @@
 /.idea
 /.vscode
 led_switch/target
+Cargo.lock
+led_switch/Cargo.lock
