@@ -31,3 +31,19 @@ impl From<std::io::Error> for RMakerError {
         Self(msg)
     }
 }
+
+#[cfg(target_os = "espidf")]
+impl From<esp_idf_svc::sys::EspError> for RMakerError {
+    fn from(value: esp_idf_svc::sys::EspError) -> Self {
+        let msg = value.to_string();
+        let msg = format!("EspError: {}", msg);
+        Self(msg)
+    }
+}
+
+#[cfg(target_os = "espidf")]
+impl From<esp_idf_svc::hal::io::EspIOError> for RMakerError {
+    fn from(value: esp_idf_svc::hal::io::EspIOError) -> Self {
+        value.0.into() // convert EspIoError -> EspError -> Error
+    }
+}

@@ -1,4 +1,4 @@
-use components::http::HttpConfiguration;
+use components::http_server::HttpConfiguration;
 use components::persistent_storage::Nvs;
 use components::persistent_storage::NvsPartition;
 use components::protocomm::*;

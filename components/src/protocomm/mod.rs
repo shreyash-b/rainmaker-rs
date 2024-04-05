@@ -2,7 +2,7 @@ mod proto;
 mod security;
 pub mod transports;
 
-use crate::{error::Error, http::HttpConfiguration};
+use crate::{error::Error, http_server::HttpConfiguration};
 pub use prost::Message;
 pub use proto::*;
 use std::collections::HashMap;

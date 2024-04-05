@@ -10,7 +10,7 @@ use std::thread::{self, JoinHandle};
 use log::{error, info};
 
 use crate::error::Error;
-use crate::http::base::*;
+use crate::http_server::base::*;
 
 impl From<&tiny_http::Method> for HttpMethod {
     fn from(inp: &tiny_http::Method) -> Self {

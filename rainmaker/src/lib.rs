@@ -64,6 +64,20 @@ where
         self.node_id.clone()
     }
 
+    // pub fn subscribe_to_mqtt_topics(&mut self) -> Result<(), RMakerError> {
+    //     let node = &self.node;
+    //     let node_id = self.node_id.clone();
+    //     let remote_param_topic = format!("node/{}/params/remote", node_id);
+    //     let otaurl_topic = format!("node/{}/otaurl", node_id);
+
+    //     rmaker_mqtt::subscribe(&remote_param_topic, move |msg| {
+    //         remote_params_callback(msg, node.to_owned().unwrap())
+    //     })?;
+
+    //     Ok(())
+    // }
+
+    
     pub fn start(&mut self) -> Result<(), RMakerError> {
         // initialize mqtt if not done already
         if !rmaker_mqtt::is_mqtt_initialized() {
@@ -75,6 +89,7 @@ where
         let node_config_topic = format!("node/{}/config", node_id);
         let params_local_init_topic = format!("node/{}/params/local/init", node_id);
         let remote_param_topic = format!("node/{}/params/remote", node_id);
+        let otaurl_topic = format!("node/{}/otaurl", node_id);
 
         match curr_node {
             Some(node) => {
@@ -96,7 +111,13 @@ where
                 thread::sleep(Duration::from_secs(1)); // wait for connection
                 rmaker_mqtt::subscribe(&remote_param_topic, move |msg| {
                     remote_params_callback(msg, node.to_owned())
-                })?
+                })?;
+
+                rmaker_mqtt::subscribe(&otaurl_topic, move |msg| {
+                    otaurl_callback(msg);
+                })?;
+
+                thread::Builder::new().stack_size(50 * 1024).spawn(manage_ota_rollback).unwrap();
             }
             None => panic!("error while starting: node not registered"),
         }
@@ -173,6 +194,16 @@ fn remote_params_callback(msg: ReceivedMessage, node: Arc<Node<'_>>) {
     }
 }
 
+fn otaurl_callback(msg: ReceivedMessage) -> Result<(), RMakerError> {
+    let received_val: HashMap<String, Value> =
+        serde_json::from_str(&String::from_utf8(msg.payload).unwrap()).unwrap();
+    let ota_url = received_val.get("url").unwrap().as_str().unwrap();
+    // let ota_job_id = received_val.get("ota_job_id").unwrap(); to be implemented..
+    handle_ota_updates(ota_url)?;
+
+    Ok(())
+}
+
 fn cloud_user_assoc_callback(_ep: String, data: Vec<u8>, node_id: String) -> Vec<u8> {
     let req_proto = RMakerConfigPayload::decode(&*data).unwrap();
     let req_payload = req_proto.payload.unwrap();
@@ -239,4 +270,40 @@ pub fn report_params(device_name: &str, params: HashMap<String, Value>) {
 
     let local_params_topic = format!("node/{}/params/local", NODEID.as_str());
     rmaker_mqtt::publish(&local_params_topic, updated_params.to_string().into_bytes()).unwrap();
+}
+
+pub fn handle_ota_updates(ota_url: &str) -> Result<(), RMakerError> {
+    let mut ota = components::ota::OTAHandler::new()?;
+    ota.get_image_data(ota_url)?;
+    thread::sleep(Duration::from_secs(10));
+    match rmaker_mqtt::is_mqtt_connected() && ota.mark_partition_valid_pending() {
+        true => {
+            ota.mark_partition_valid()?;
+        }
+        false => {
+            ota.mark_partition_invalid_and_rollback();
+        }
+    }
+    Ok(())
+}
+
+pub fn manage_ota_rollback() -> Result<(), RMakerError> {
+    let mut ota = components::ota::OTAHandler::new().unwrap();
+    log::info!("waiting 20 secs to check ota");
+    thread::sleep(Duration::from_secs(20));
+    log::info!("done waiting for ota");
+    if ota.mark_partition_valid_pending() {
+        match rmaker_mqtt::is_mqtt_connected() {
+            true => {
+                log::info!("marking ota is valid");
+                ota.mark_partition_valid();
+            }
+            false => {
+                log::info!("marking ota invalid");
+                ota.mark_partition_invalid_and_rollback();
+            }
+        }
+    }
+
+    Ok(())
 }

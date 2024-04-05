@@ -1,4 +1,4 @@
-use crate::http::{HttpConfiguration, HttpMethod, HttpRequest, HttpResponse, HttpServer};
+use crate::http_server::{HttpConfiguration, HttpMethod, HttpRequest, HttpResponse, HttpServer};
 use crate::protocomm::transports::TransportTrait;
 use crate::protocomm::{protocomm_req_handler, CallbackData};
 use std::borrow::Borrow;

@@ -48,6 +48,8 @@ impl<'a> MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'a>> {
             server_certificate: Some(esp_idf_svc::tls::X509::pem(server_cert)),
             client_certificate: Some(esp_idf_svc::tls::X509::pem(client_cert)),
             private_key: Some(esp_idf_svc::tls::X509::pem(private_key)),
+            buffer_size: 1792,
+            out_buffer_size: 1792,
             ..Default::default()
         };
 

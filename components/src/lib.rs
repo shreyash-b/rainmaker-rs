@@ -2,11 +2,13 @@
 #![feature(trait_alias)] // http_linux.rs
 
 pub mod error;
-pub mod http;
+pub mod http_server;
+pub mod http_client;
 pub mod mqtt;
 pub mod persistent_storage;
 pub mod protocomm;
 pub mod wifi;
+pub mod ota;
 
 pub(crate) mod utils;
 

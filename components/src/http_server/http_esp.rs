@@ -6,7 +6,7 @@ use esp_idf_svc::{
     io::Write,
 };
 
-use crate::{error::Error, http::base::*};
+use crate::{error::Error, http_server::base::*};
 
 impl From<esp_idf_svc::http::Method> for HttpMethod {
     fn from(value: esp_idf_svc::http::Method) -> Self {
