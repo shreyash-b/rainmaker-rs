@@ -33,12 +33,14 @@ pub struct WifiProvisioningMgr<'a> {
     wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
     device_name: String,
     version_string: String,
+    nvs_partition: NvsPartition
 }
 
 impl<'a> WifiProvisioningMgr<'a> {
     pub fn new(
         wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
         config: WifiProvisioningConfig,
+        nvs_partition: NvsPartition
     ) -> Self {
         let version_info = Self::get_version_info(&config.security);
         let protocomm_config = ProtocommConfig {
@@ -53,11 +55,12 @@ impl<'a> WifiProvisioningMgr<'a> {
             wifi_client,
             device_name: config.device_name,
             version_string: version_info,
+            nvs_partition
         }
     }
 
-    pub fn wrap(wifi_client: WifiMgr<'static>, config: WifiProvisioningConfig) -> Self {
-        Self::new(wrap_in_arc_mutex(wifi_client), config)
+    pub fn wrap(wifi_client: WifiMgr<'static>, config: WifiProvisioningConfig, nvs_partition: NvsPartition) -> Self {
+        Self::new(wrap_in_arc_mutex(wifi_client), config, nvs_partition)
     }
 
     pub fn init(&mut self) {
@@ -89,8 +92,8 @@ impl<'a> WifiProvisioningMgr<'a> {
         pc.register_endpoint(endpoint, callback).unwrap();
     }
 
-    pub fn get_provisioned_creds() -> Option<(String, String)> {
-        let nvs = Nvs::new(NvsPartition::new("nvs").unwrap(), "wifi_creds").unwrap();
+    pub fn get_provisioned_creds(nvs_partition: NvsPartition) -> Option<(String, String)> {
+        let nvs = Nvs::new(nvs_partition, "wifi_creds").unwrap();
         let ssid_nvs = nvs.get_bytes("ssid");
         if ssid_nvs.is_none() {
             None
@@ -102,30 +105,21 @@ impl<'a> WifiProvisioningMgr<'a> {
         }
     }
 
-    pub fn reset_wifi_provisioning() -> Result<(), RMakerError> {
+    pub fn reset_wifi_provisioning(nvs_partition: NvsPartition) -> Result<(), RMakerError> {
         log::warn!("Resetting WiFi Provisioned Credentials");
-        if Self::get_provisioned_creds().is_none() {
+        if Self::get_provisioned_creds(nvs_partition.clone()).is_none() {
             log::error!("Abort. WiFi not provisioned");
             return Err(RMakerError("not provisioned".to_string()));
         }
 
-        let nvs_partition = NvsPartition::new("nvs");
-        match nvs_partition {
-            Ok(partition) => {
-                let mut namespace = Nvs::new(partition, "wifi_creds")?;
-                namespace.remove("ssid")?;
-                namespace.remove("password")?;
-                Ok(())
-            }
-            Err(_) => {
-                log::error!("NVS partition not found");
-                Err(RMakerError("partition not found".to_owned()))
-            }
-        }
+        let mut namespace = Nvs::new(nvs_partition, "wifi_creds")?;
+        namespace.remove("ssid")?;
+        namespace.remove("password")?;
+        Ok(())
     }
 
     pub fn connect(&mut self) -> Result<(), RMakerError> {
-        match Self::get_provisioned_creds() {
+        match Self::get_provisioned_creds(self.nvs_partition.clone()) {
             Some((ssid, pass)) => {
                 let mut wifi = self.wifi_client.lock().unwrap();
                 wifi.set_client_config(WifiClientConfig {
@@ -174,6 +168,7 @@ impl<'a> WifiProvisioningMgr<'a> {
         log::debug!(target: LOGGER_TAH, "adding provisioning listeners");
         let wifi_driv_prov_config = self.wifi_client.clone();
         let wifi_driv_prov_scan = self.wifi_client.clone();
+        let nvs_partition = self.nvs_partition.clone();
 
         let pc = &mut self.protocomm;
         pc.set_security_endpoint("prov-session").unwrap(); // hardcoded sec params for sec0
@@ -182,7 +177,7 @@ impl<'a> WifiProvisioningMgr<'a> {
             .unwrap();
 
         pc.register_endpoint("prov-config", move |ep, data| -> Vec<u8> {
-            prov_config_callback(ep, data, wifi_driv_prov_config.to_owned())
+            prov_config_callback(ep, data, wifi_driv_prov_config.to_owned(), nvs_partition.to_owned())
         })
         .unwrap();
 
@@ -226,6 +221,7 @@ fn prov_config_callback(
     _ep: String,
     data: Vec<u8>,
     wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
+    nvs_partition: NvsPartition
 ) -> Vec<u8> {
     let req_proto = WiFiConfigPayload::decode(&*data).unwrap();
 
@@ -233,7 +229,7 @@ fn prov_config_callback(
     match msg_type {
         WiFiConfigMsgType::TypeCmdGetStatus => handle_cmd_get_status(wifi_driv),
         WiFiConfigMsgType::TypeCmdSetConfig => {
-            handle_cmd_set_config(req_proto.payload.unwrap(), wifi_driv)
+            handle_cmd_set_config(req_proto.payload.unwrap(), wifi_driv, nvs_partition)
         }
         WiFiConfigMsgType::TypeCmdApplyConfig => handle_cmd_apply_config(),
         _ => unreachable!(),
@@ -259,6 +255,7 @@ fn prov_scan_callback(
 fn handle_cmd_set_config(
     req_payload: wi_fi_config_payload::Payload,
     wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
+    nvs_partition: NvsPartition
 ) -> Vec<u8> {
     let mut wifi_driv = wifi_driv.lock().unwrap();
     match req_payload {
@@ -272,7 +269,6 @@ fn handle_cmd_set_config(
             wifi_driv.set_client_config(wifi_client_config).unwrap();
             wifi_driv.connect().unwrap(); // so that esp32 crashes incase wifi creds are wrong. Not the best solution, i know.
 
-            let nvs_partition = NvsPartition::new("nvs").unwrap();
             let mut nvs = Nvs::new(nvs_partition, "wifi_creds").unwrap();
 
             nvs.set_bytes("ssid", config.ssid.as_ref()).unwrap();

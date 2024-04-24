@@ -25,6 +25,8 @@ use rainmaker::{
 };
 #[cfg(target_os = "espidf")]
 use rainmaker::wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
+#[cfg(target_os = "espidf")]
+use components::persistent_storage::NvsPartition;
 
 use serde_json::Value;
 
@@ -99,7 +101,10 @@ fn main() -> Result<(), RMakerError> {
     
     #[cfg(target_os="espidf")]
     let wifi_arc_mutex = Arc::new(Mutex::new(WifiMgr::new()?));
-    
+
+    #[cfg(target_os = "espidf")]
+    let nvs_partition = NvsPartition::new("nvs")?;
+
     #[cfg(target_os="espidf")]
     let mut prov_mgr = WifiProvisioningMgr::new(
         wifi_arc_mutex,
@@ -108,11 +113,12 @@ fn main() -> Result<(), RMakerError> {
             scheme: rainmaker::wifi_prov::WifiProvScheme::SoftAP,
             security: ProtocommSecurity::default(),
         },
+        nvs_partition.clone()
     );
 
     
     #[cfg(target_os="espidf")]
-    match WifiProvisioningMgr::get_provisioned_creds() {
+    match WifiProvisioningMgr::get_provisioned_creds(nvs_partition.clone()) {
         Some(_) => {
             log::warn!("Node already provisioned. Connecting");
             prov_mgr.connect().unwrap()
