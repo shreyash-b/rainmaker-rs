@@ -1,4 +1,3 @@
-
 use rainmaker::node::*;
 #[cfg(target_os = "espidf")]
 use serde_json::Value;
@@ -8,18 +7,16 @@ use std::{collections::HashMap, sync::LazyLock};
 #[cfg(target_os = "espidf")]
 use esp_idf_svc::hal::ledc::LedcDriver;
 #[cfg(target_os = "espidf")]
-use std::sync::{OnceLock, Mutex};
+use std::sync::{Mutex, OnceLock};
 
 #[cfg(target_os = "espidf")]
 static LED_DATA: LazyLock<Mutex<(bool, u32)>> = LazyLock::new(|| Mutex::new((false, 0))); // power, brightness
 
 #[cfg(target_os = "espidf")]
-pub(super) static LED_DRIVER: OnceLock<Mutex<LedcDriver<'_>>> =  OnceLock::new();
+pub(super) static LED_DRIVER: OnceLock<Mutex<LedcDriver<'_>>> = OnceLock::new();
 
 #[cfg(target_os = "espidf")]
-pub fn handle_led_update(
-    params: &HashMap<String, Value>,
-) {
+pub fn handle_led_update(params: &HashMap<String, Value>) {
     if params.get("Power").is_some() || params.get("Brightness").is_some() {
         let mut driver = LED_DRIVER.get().unwrap().lock().unwrap();
         let mut curr_data = LED_DATA.lock().unwrap();

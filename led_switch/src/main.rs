@@ -3,7 +3,7 @@
 mod device_led;
 mod device_light;
 
-#[cfg(target_os="espidf")]
+#[cfg(target_os = "espidf")]
 use components::{protocomm::ProtocommSecurity, wifi::WifiMgr};
 use device_led::*;
 use device_light::*;
@@ -20,30 +20,28 @@ use std::collections::HashMap;
 #[cfg(target_os = "espidf")]
 use std::sync::{Arc, Mutex};
 
-use rainmaker::{
-    error::RMakerError, node::{Info, Node}, Rainmaker
-};
-#[cfg(target_os = "espidf")]
-use rainmaker::wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
 #[cfg(target_os = "espidf")]
 use components::persistent_storage::NvsPartition;
+#[cfg(target_os = "espidf")]
+use rainmaker::wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr};
+use rainmaker::{
+    error::RMakerError,
+    node::{Info, Node},
+    Rainmaker,
+};
 
 use serde_json::Value;
 
-fn led_cb(
-    params: HashMap<String, Value>,
-) {
+fn led_cb(params: HashMap<String, Value>) {
     log::info!("led: {:?}", params);
-    #[cfg(target_os="espidf")]
+    #[cfg(target_os = "espidf")]
     device_led::handle_led_update(&params);
     rainmaker::report_params("LED", params);
 }
 
-fn light_cb(
-    params: HashMap<String, Value>,
-) {
+fn light_cb(params: HashMap<String, Value>) {
     log::info!("light: {:?}", params);
-    #[cfg(target_os="espidf")]
+    #[cfg(target_os = "espidf")]
     device_light::handle_light_update(&params);
     rainmaker::report_params("Light", params);
 }
@@ -51,16 +49,16 @@ fn light_cb(
 fn initialize_logger() {
     #[cfg(target_os = "espidf")]
     esp_idf_svc::log::EspLogger::initialize_default();
-    
+
     #[cfg(target_os = "linux")]
     simple_logger::SimpleLogger::default()
-    .with_level(log::LevelFilter::Info)
-    .init()
-    .unwrap();
+        .with_level(log::LevelFilter::Info)
+        .init()
+        .unwrap();
 }
 
-#[cfg(target_os="espidf")]
-fn initialize_light_led_drivers(peripherals: Peripherals){
+#[cfg(target_os = "espidf")]
+fn initialize_light_led_drivers(peripherals: Peripherals) {
     let led_driver_local = LedcDriver::new(
         peripherals.ledc.channel0,
         LedcTimerDriver::new(
@@ -76,13 +74,12 @@ fn initialize_light_led_drivers(peripherals: Peripherals){
     let light_driver_local =
         Ws2812Esp32Rmt::new(peripherals.rmt.channel0, peripherals.pins.gpio8).unwrap();
     let _ = LIGHT_DRIVER.set(Mutex::new(light_driver_local));
-    
 }
 
 fn main() -> Result<(), RMakerError> {
     initialize_logger();
     std::env::set_var("RUST_BACKTRACE", "1"); // for debugging
-    
+
     // NOTE FOR RUNNING CODE
     // you need your node to be previously provisioned for this code to work
     // for esp: perform the claiming using rainmaker cli [./rainmaker claim] and that should take care of rest
@@ -91,21 +88,21 @@ fn main() -> Result<(), RMakerError> {
     //      Provide this path as RMAKER_CLAIMDATA_PATH environment variable before running rainmaker for the first time on linux
     //      [RMAKER_CLAIMDATA_PATH={YOUR_CLAIMDATA_PATH} cargo run_linux]
     //      This will fetch the relevant data and store using persistent storage
-    
+
     let mut rmaker = Rainmaker::new().unwrap();
 
     #[cfg(target_os = "espidf")]
     let peripherals = Peripherals::take().unwrap();
     #[cfg(target_os = "espidf")]
     initialize_light_led_drivers(peripherals);
-    
-    #[cfg(target_os="espidf")]
+
+    #[cfg(target_os = "espidf")]
     let wifi_arc_mutex = Arc::new(Mutex::new(WifiMgr::new()?));
 
     #[cfg(target_os = "espidf")]
     let nvs_partition = NvsPartition::new("nvs")?;
 
-    #[cfg(target_os="espidf")]
+    #[cfg(target_os = "espidf")]
     let mut prov_mgr = WifiProvisioningMgr::new(
         wifi_arc_mutex,
         WifiProvisioningConfig {
@@ -113,11 +110,10 @@ fn main() -> Result<(), RMakerError> {
             scheme: rainmaker::wifi_prov::WifiProvScheme::SoftAP,
             security: ProtocommSecurity::default(),
         },
-        nvs_partition.clone()
+        nvs_partition.clone(),
     );
 
-    
-    #[cfg(target_os="espidf")]
+    #[cfg(target_os = "espidf")]
     match WifiProvisioningMgr::get_provisioned_creds(nvs_partition.clone()) {
         Some(_) => {
             log::warn!("Node already provisioned. Connecting");
@@ -129,11 +125,9 @@ fn main() -> Result<(), RMakerError> {
             prov_mgr.start().unwrap();
         }
     }
-    
 
     let mut light_device = create_light_device("Light");
     light_device.register_callback(Box::new(light_cb));
-
 
     let mut led_device = create_led_device("LED");
     led_device.register_callback(Box::new(led_cb));

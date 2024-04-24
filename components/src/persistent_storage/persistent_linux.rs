@@ -48,11 +48,11 @@ impl Nvs<PickleDb> {
         Ok(Self(db))
     }
 
-    pub fn remove(&mut self, key: &str) -> Result<bool, Error>{
+    pub fn remove(&mut self, key: &str) -> Result<bool, Error> {
         Ok(self.0.rem(key)?)
     }
 
-    pub fn set_u8(&mut self, key: &str, data: u8)-> Result<(), Error>{
+    pub fn set_u8(&mut self, key: &str, data: u8) -> Result<(), Error> {
         Ok(self.0.set(key, &data)?)
     }
 
@@ -60,7 +60,7 @@ impl Nvs<PickleDb> {
         Ok(self.0.set(key, &bytes)?)
     }
 
-    pub fn get_u8(&self, key: &str) -> Option<u8>{
+    pub fn get_u8(&self, key: &str) -> Option<u8> {
         self.0.get::<u8>(key)
     }
 

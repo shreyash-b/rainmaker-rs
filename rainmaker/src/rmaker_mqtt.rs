@@ -62,6 +62,8 @@ pub(crate) fn is_mqtt_initialized() -> bool {
     MQTT_INNER.get().is_some()
 }
 
+// this function is not used right now but may be required in future
+#[allow(dead_code)]
 pub(crate) fn is_mqtt_connected() -> bool {
     CONNECTED.load(std::sync::atomic::Ordering::SeqCst)
 }

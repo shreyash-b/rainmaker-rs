@@ -33,14 +33,14 @@ pub struct WifiProvisioningMgr<'a> {
     wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
     device_name: String,
     version_string: String,
-    nvs_partition: NvsPartition
+    nvs_partition: NvsPartition,
 }
 
 impl<'a> WifiProvisioningMgr<'a> {
     pub fn new(
         wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
         config: WifiProvisioningConfig,
-        nvs_partition: NvsPartition
+        nvs_partition: NvsPartition,
     ) -> Self {
         let version_info = Self::get_version_info(&config.security);
         let protocomm_config = ProtocommConfig {
@@ -55,11 +55,15 @@ impl<'a> WifiProvisioningMgr<'a> {
             wifi_client,
             device_name: config.device_name,
             version_string: version_info,
-            nvs_partition
+            nvs_partition,
         }
     }
 
-    pub fn wrap(wifi_client: WifiMgr<'static>, config: WifiProvisioningConfig, nvs_partition: NvsPartition) -> Self {
+    pub fn wrap(
+        wifi_client: WifiMgr<'static>,
+        config: WifiProvisioningConfig,
+        nvs_partition: NvsPartition,
+    ) -> Self {
         Self::new(wrap_in_arc_mutex(wifi_client), config, nvs_partition)
     }
 
@@ -71,7 +75,7 @@ impl<'a> WifiProvisioningMgr<'a> {
 
     pub fn start(&mut self) -> Result<(), RMakerError> {
         self.init();
-        
+
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         log::debug!(target: LOGGER_TAH, "starting wifi in SoftAP mode");
         wifi_driv.set_client_config(WifiClientConfig::default())?;
@@ -177,7 +181,12 @@ impl<'a> WifiProvisioningMgr<'a> {
             .unwrap();
 
         pc.register_endpoint("prov-config", move |ep, data| -> Vec<u8> {
-            prov_config_callback(ep, data, wifi_driv_prov_config.to_owned(), nvs_partition.to_owned())
+            prov_config_callback(
+                ep,
+                data,
+                wifi_driv_prov_config.to_owned(),
+                nvs_partition.to_owned(),
+            )
         })
         .unwrap();
 
@@ -221,7 +230,7 @@ fn prov_config_callback(
     _ep: String,
     data: Vec<u8>,
     wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
-    nvs_partition: NvsPartition
+    nvs_partition: NvsPartition,
 ) -> Vec<u8> {
     let req_proto = WiFiConfigPayload::decode(&*data).unwrap();
 
@@ -255,7 +264,7 @@ fn prov_scan_callback(
 fn handle_cmd_set_config(
     req_payload: wi_fi_config_payload::Payload,
     wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
-    nvs_partition: NvsPartition
+    nvs_partition: NvsPartition,
 ) -> Vec<u8> {
     let mut wifi_driv = wifi_driv.lock().unwrap();
     match req_payload {

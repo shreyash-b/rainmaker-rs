@@ -1,11 +1,10 @@
-
-#[cfg(target_os="espidf")]
+#[cfg(target_os = "espidf")]
 use std::collections::HashMap;
-#[cfg(target_os="espidf")]
+#[cfg(target_os = "espidf")]
 use std::sync::OnceLock;
 
 use rainmaker::node::*;
-#[cfg(target_os="espidf")]
+#[cfg(target_os = "espidf")]
 use serde_json::Value;
 #[cfg(target_os = "espidf")]
 use smart_leds::{hsv::hsv2rgb, RGB8};
@@ -33,17 +32,15 @@ static LIGHT_DATA: Mutex<(bool, Hsv)> = Mutex::new((
 )); // power and color
 
 #[cfg(target_os = "espidf")]
-pub(super) static LIGHT_DRIVER: OnceLock<Mutex<LedPixelEsp32Rmt<'_, RGB8, LedPixelColorGrb24>>> = OnceLock::new();
-
+pub(super) static LIGHT_DRIVER: OnceLock<Mutex<LedPixelEsp32Rmt<'_, RGB8, LedPixelColorGrb24>>> =
+    OnceLock::new();
 
 #[cfg(target_os = "espidf")]
-pub fn handle_light_update( 
-    params: &HashMap<String, Value>,
-) {
+pub fn handle_light_update(params: &HashMap<String, Value>) {
     if params.contains_key("Power")
-    || params.contains_key("Hue")
-    || params.contains_key("Saturation")
-    || params.contains_key("Brightness")
+        || params.contains_key("Hue")
+        || params.contains_key("Saturation")
+        || params.contains_key("Brightness")
     {
         let mut driver = LIGHT_DRIVER.get().unwrap().lock().unwrap();
         let mut curr_data = LIGHT_DATA.lock().unwrap();
