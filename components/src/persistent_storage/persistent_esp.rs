@@ -19,9 +19,22 @@ impl Nvs<EspNvs<NvsCustom>> {
         Ok(Self(EspNvs::new(partition.0, namespace, true)?))
     }
 
+    pub fn remove(&mut self, key: &str) -> Result<bool, Error> {
+        Ok(self.0.remove(key)?)
+    }
+
+    pub fn set_u8(&mut self, name: &str, data: u8) -> Result<(), Error> {
+        self.0.set_u8(name, data)?;
+        Ok(())
+    }
+
     pub fn set_bytes(&mut self, name: &str, bytes: &[u8]) -> Result<(), Error> {
         self.0.set_blob(name, bytes)?;
         Ok(())
+    }
+
+    pub fn get_u8(&self, key: &str) -> Option<u8> {
+        self.0.get_u8(key).unwrap()
     }
 
     pub fn get_bytes(&self, name: &str) -> Option<Vec<u8>> {

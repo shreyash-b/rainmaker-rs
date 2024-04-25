@@ -1,26 +1,24 @@
-use rainmaker::{node::*, Rainmaker};
+use rainmaker::node::*;
+#[cfg(target_os = "espidf")]
 use serde_json::Value;
-use std::collections::HashMap;
+#[cfg(target_os = "espidf")]
+use std::{collections::HashMap, sync::LazyLock};
 
 #[cfg(target_os = "espidf")]
 use esp_idf_svc::hal::ledc::LedcDriver;
-use std::sync::Mutex;
-
-static LED_DATA: Mutex<(bool, u32)> = Mutex::new((false, 0)); // power, brightness
+#[cfg(target_os = "espidf")]
+use std::sync::{Mutex, OnceLock};
 
 #[cfg(target_os = "espidf")]
-pub type LedDriverType<'a> = Mutex<LedcDriver<'a>>;
-#[cfg(target_os = "linux")]
-pub type LedDriverType<'a> = ();
+static LED_DATA: LazyLock<Mutex<(bool, u32)>> = LazyLock::new(|| Mutex::new((false, 0))); // power, brightness
 
 #[cfg(target_os = "espidf")]
-pub fn handle_led_update(
-    params: HashMap<String, Value>,
-    driver: &LedDriverType,
-    rmaker: &Mutex<Rainmaker<'static>>,
-) {
+pub(super) static LED_DRIVER: OnceLock<Mutex<LedcDriver<'_>>> = OnceLock::new();
+
+#[cfg(target_os = "espidf")]
+pub fn handle_led_update(params: &HashMap<String, Value>) {
     if params.get("Power").is_some() || params.get("Brightness").is_some() {
-        let mut driver = driver.lock().unwrap();
+        let mut driver = LED_DRIVER.get().unwrap().lock().unwrap();
         let mut curr_data = LED_DATA.lock().unwrap();
 
         if let Some(power) = params.get("Power") {
@@ -41,34 +39,16 @@ pub fn handle_led_update(
             // power
             driver.set_duty(curr_data.1).unwrap();
         }
-
-        report_params(params, rmaker)
     }
-}
-
-#[cfg(target_os = "linux")]
-pub fn handle_led_update(
-    _params: HashMap<String, Value>,
-    _driver: &LedDriverType,
-    rmaker: &Mutex<Rainmaker<'static>>,
-) {
-    report_params(_params, rmaker)
 }
 
 pub fn create_led_device(name: &str) -> Device {
     let mut led_device = Device::new(name, DeviceType::Light, "Power", vec![]);
-    let device_params = LED_DATA.lock().unwrap();
-    let power_param = Param::new_power("Power", device_params.0);
-    let brightness_param = Param::new_brighness("Brightness", device_params.1);
+    let power_param = Param::new_power("Power", false);
+    let brightness_param = Param::new_brighness("Brightness", 0);
 
     led_device.add_param(power_param);
     led_device.add_param(brightness_param);
 
     led_device
-}
-
-fn report_params(params: HashMap<String, Value>, rmaker: &Mutex<Rainmaker<'static>>) {
-    let rmaker_lock = rmaker.lock().unwrap();
-    rmaker_lock.report_params("LED", params);
-    drop(rmaker_lock);
 }

@@ -1085,6 +1085,7 @@ dependencies = [
  "log",
  "rainmaker",
  "serde_json",
+ "simple_logger",
  "smart-leds",
  "smart-leds-trait 0.2.1",
  "ws2812-esp32-rmt-driver",
