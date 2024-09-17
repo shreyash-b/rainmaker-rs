@@ -1,5 +1,5 @@
 [workspace]
-members = ["components", "rainmaker", "led_switch"]
+members = ["components", "rainmaker", "examples"]
 resolver = "2"
 
 [profile.dev]
