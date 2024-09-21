@@ -1,9 +1,6 @@
 mod base;
 
-#[cfg(target_os = "espidf")]
 mod persistent_esp;
-
-#[cfg(target_os = "linux")]
 mod persistent_linux;
 
 #[cfg(target_os = "espidf")]

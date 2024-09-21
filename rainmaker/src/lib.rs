@@ -1,6 +1,4 @@
 #![feature(trait_alias)]
-#![feature(lazy_cell)]
-
 include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 
 pub mod error;

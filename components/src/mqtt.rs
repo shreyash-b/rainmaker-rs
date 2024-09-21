@@ -1,11 +1,8 @@
 pub mod base;
 pub use base::*;
 
-#[cfg(target_os = "linux")]
-mod linux;
-
-#[cfg(target_os = "espidf")]
 mod esp;
+mod linux;
 
 #[cfg(target_os = "linux")]
 pub type MqttClient<'a> = base::MqttClient<rumqttc::Client>;

@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 use crate::error::Error;
 use crate::mqtt::base::*;
 
