@@ -1,19 +1,18 @@
 #![cfg(target_os = "espidf")]
 
+use std::str::FromStr;
+
 use crate::error::Error;
 use crate::wifi::base::*;
 
-use embedded_svc::{
-    ipv4::{Ipv4Addr, Mask, Subnet},
-    wifi::AccessPointInfo,
-};
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::{delay::Delay, modem::Modem},
+    ipv4::{self, Ipv4Addr, Mask, Subnet},
     netif::{EspNetif, NetifConfiguration, NetifStack},
     wifi::{
-        AccessPointConfiguration, AuthMethod, BlockingWifi, ClientConfiguration, Configuration,
-        EspWifi, WifiDriver,
+        AccessPointConfiguration, AccessPointInfo, AuthMethod, BlockingWifi, ClientConfiguration,
+        Configuration, EspWifi, WifiDriver,
     },
 };
 
@@ -55,7 +54,7 @@ impl From<AccessPointInfo> for WifiApInfo {
     fn from(value: AccessPointInfo) -> Self {
         Self {
             ssid: value.ssid.as_str().into(),
-            auth: value.auth_method.into(),
+            auth: value.auth_method.unwrap().into(),
             bssid: value.bssid.into(),
             channel: value.channel,
             signal_strength: value.signal_strength,
@@ -66,8 +65,8 @@ impl From<AccessPointInfo> for WifiApInfo {
 impl From<WifiApConfig> for AccessPointConfiguration {
     fn from(value: WifiApConfig) -> Self {
         AccessPointConfiguration {
-            ssid: value.ssid.as_str().into(),
-            password: value.password.as_str().into(),
+            ssid: heapless::String::from_str(&value.ssid).unwrap(),
+            password: heapless::String::from_str(&value.password).unwrap(),
             auth_method: value.auth.into(),
             ..Default::default()
         }
@@ -91,11 +90,12 @@ impl From<WifiClientConfig> for ClientConfiguration {
             Err(_) => None,
         };
         Self {
-            ssid: value.ssid.as_str().into(),
+            ssid: heapless::String::from_str(&value.ssid).unwrap(),
             bssid,
             auth_method: value.auth.into(),
-            password: value.password.as_str().into(),
+            password: heapless::String::from_str(&value.password).unwrap(),
             channel: Some(value.channel),
+            ..Default::default()
         }
     }
 }
@@ -121,7 +121,7 @@ impl WifiMgr<BlockingWifi<EspWifi<'_>>> {
         // so use custom router configuration
         let mut netif_router_config = NetifConfiguration::wifi_default_router();
         netif_router_config.ip_configuration =
-            embedded_svc::ipv4::Configuration::Router(embedded_svc::ipv4::RouterConfiguration {
+            ipv4::Configuration::Router(ipv4::RouterConfiguration {
                 subnet: Subnet {
                     gateway: Ipv4Addr::new(192, 168, 4, 1),
                     mask: Mask(24),

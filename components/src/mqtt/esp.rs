@@ -1,5 +1,7 @@
 #![cfg(target_os = "espidf")]
 
+use esp_idf_svc::sys::EspError;
+
 use crate::{error::Error, mqtt::base::*};
 
 impl From<&QoSLevel> for esp_idf_svc::mqtt::client::QoS {
@@ -12,22 +14,25 @@ impl From<&QoSLevel> for esp_idf_svc::mqtt::client::QoS {
     }
 }
 
-impl From<&esp_idf_svc::mqtt::client::Event<esp_idf_svc::mqtt::client::EspMqttMessage<'_>>>
-    for MqttEvent
-{
-    fn from(
-        value: &esp_idf_svc::mqtt::client::Event<esp_idf_svc::mqtt::client::EspMqttMessage<'_>>,
-    ) -> Self {
+impl From<esp_idf_svc::mqtt::client::EventPayload<'_, EspError>> for MqttEvent {
+    fn from(value: esp_idf_svc::mqtt::client::EventPayload<'_, EspError>) -> Self {
         match value {
-            esp_idf_svc::mqtt::client::Event::Connected(_) => MqttEvent::Connected,
-            esp_idf_svc::mqtt::client::Event::Received(m) => MqttEvent::Received(ReceivedMessage {
-                topic: m.topic().unwrap().to_string(),
-                payload: Vec::from(m.data()),
-            }),
-            esp_idf_svc::mqtt::client::Event::Disconnected => MqttEvent::Disconnected,
-            esp_idf_svc::mqtt::client::Event::BeforeConnect => MqttEvent::BeforeConnect,
-            esp_idf_svc::mqtt::client::Event::Published(_) => MqttEvent::Published,
-            esp_idf_svc::mqtt::client::Event::Subscribed(_) => MqttEvent::Subscribed,
+            esp_idf_svc::mqtt::client::EventPayload::Connected(_) => MqttEvent::Connected,
+            esp_idf_svc::mqtt::client::EventPayload::Received {
+                id: _,
+                topic,
+                data,
+                details: _,
+            } => {
+                MqttEvent::Received(ReceivedMessage {
+                    topic: topic.unwrap().to_string(), // not able to think of a case where this will be null
+                    payload: data.to_vec(),
+                })
+            }
+            esp_idf_svc::mqtt::client::EventPayload::Disconnected => MqttEvent::Disconnected,
+            esp_idf_svc::mqtt::client::EventPayload::BeforeConnect => MqttEvent::BeforeConnect,
+            esp_idf_svc::mqtt::client::EventPayload::Published(_) => MqttEvent::Published,
+            esp_idf_svc::mqtt::client::EventPayload::Subscribed(_) => MqttEvent::Subscribed,
             _ => Self::Other,
         }
     }
@@ -62,13 +67,10 @@ impl<'a> MqttClient<esp_idf_svc::mqtt::client::EspMqttClient<'a>> {
 
         log::info!("connection string: {}", conn_addr);
 
-        let client = esp_idf_svc::mqtt::client::EspMqttClient::new(
+        let client = esp_idf_svc::mqtt::client::EspMqttClient::new_cb(
             conn_addr.as_str(),
             &options,
-            move |req| match req {
-                Ok(req) => callback(req.into()),
-                Err(e) => log::error!("{:?}", e),
-            },
+            move |req| callback(req.payload().into()),
         )
         .unwrap();
 

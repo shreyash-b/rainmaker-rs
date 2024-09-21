@@ -15,7 +15,7 @@ log = "0.4.22"
 simple_logger = "4.3.3"
 
 [target.'cfg(target_os="espidf")'.dependencies]
-esp-idf-svc = { version = "0.47.3", default-features = false, features = ["binstart"] }
+esp-idf-svc = { version = "0.49.1", default-features = false, features = ["binstart"] }
 
 [[bin]]
 name = "switch"

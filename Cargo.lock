@@ -83,15 +83,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d92bec98840b8f03a5ff5413de5293bfcd8bf96467cf5452609f939ec6f5de16"
 
 [[package]]
-name = "atomic-polyfill"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cf2bce30dfe09ef0bfaef228b9d414faaf7e563035494d7fe092dba54b300f4"
-dependencies = [
- "critical-section",
-]
-
-[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -126,23 +117,24 @@ checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "bindgen"
-version = "0.63.0"
+version = "0.69.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36d860121800b2a9a94f9b5604b332d5cffb234ce17609ea479d723dbc9d3885"
+checksum = "a00dc851838a2120612785d195287475a3ac45514741da670b735818822129a0"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.4.2",
  "cexpr",
  "clang-sys",
+ "itertools",
  "lazy_static",
  "lazycell",
  "log",
- "peeking_take_while",
+ "prettyplease",
  "proc-macro2",
  "quote",
  "regex",
  "rustc-hash",
  "shlex",
- "syn 1.0.109",
+ "syn 2.0.48",
  "which",
 ]
 
@@ -228,9 +220,9 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.15.4"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eee4243f1f26fc7a42710e7439c149e2b10b05472f88090acce52632f231a73a"
+checksum = "2d886547e41f740c616ae73108f6eb70afe6d940c7bc697cb30f13daec073037"
 dependencies = [
  "camino",
  "cargo-platform",
@@ -332,6 +324,7 @@ dependencies = [
  "ed25519-compact",
  "embedded-svc",
  "esp-idf-svc",
+ "heapless",
  "log",
  "pickledb",
  "prost",
@@ -554,12 +547,13 @@ checksum = "1f878075b9794c1e4ac788c95b728f26aa6366d32eeb10c7051389f898f7d067"
 
 [[package]]
 name = "embassy-sync"
-version = "0.3.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0525b466ca3ace30b57f2db868a35215dfaecd038d8668cb2db03feb7c069a0"
+checksum = "b3e0c49ff02ebe324faf3a8653ba91582e2d0a7fdef5bc88f449d5aa1bfcc05c"
 dependencies = [
  "cfg-if",
  "critical-section",
+ "embedded-io-async",
  "futures-util",
  "heapless",
 ]
@@ -585,17 +579,26 @@ dependencies = [
 
 [[package]]
 name = "embedded-hal"
-version = "1.0.0-rc.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2894bc2f0457b8ca3d6b8ab8aad64d9337583672494013457f86c5a9146c0e22"
+checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
+
+[[package]]
+name = "embedded-hal-async"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c4c685bbef7fe13c3c6dd4da26841ed3980ef33e841cddfa15ce8a8fb3f1884"
+dependencies = [
+ "embedded-hal 1.0.0",
+]
 
 [[package]]
 name = "embedded-hal-nb"
-version = "1.0.0-rc.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "257e3bb0163c69195acb0ebe0083b017b963235861d5ea9741626abdc55f39c9"
+checksum = "fba4268c14288c828995299e59b12babdbe170f6c6d73731af1b4648142e8605"
 dependencies = [
- "embedded-hal 1.0.0-rc.1",
+ "embedded-hal 1.0.0",
  "nb 1.1.0",
 ]
 
@@ -616,17 +619,15 @@ dependencies = [
 
 [[package]]
 name = "embedded-svc"
-version = "0.26.4"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55feac55fb81e14c747d5475f05ead553855a133a36f979fa4e7883a240ee829"
+checksum = "7b85590a7a120e370bed5b6bc2b399b345c60d4c749d3bc06039472da37b9893"
 dependencies = [
- "atomic-waker",
  "defmt",
  "embedded-io",
  "embedded-io-async",
  "enumset",
  "heapless",
- "no-std-net",
  "serde",
 ]
 
@@ -637,6 +638,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4caa4f198bb9152a55c0103efb83fa4edfcbb8625f4c9e94ae8ec8e23827c563"
 dependencies = [
  "anyhow",
+ "bitflags 1.3.2",
+ "filetime",
+ "home",
+ "log",
+ "remove_dir_all",
+ "serde",
+ "serde_json",
+ "shlex",
+ "strum",
+ "tempfile",
+ "thiserror",
+ "which",
+]
+
+[[package]]
+name = "embuild"
+version = "0.32.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6e3e470e31fd4cae065d37f7cad56d42861ba1f9a35aa277694dee3d6b357c4"
+dependencies = [
+ "anyhow",
  "bindgen",
  "bitflags 1.3.2",
  "cmake",
@@ -644,6 +666,7 @@ dependencies = [
  "globwalk",
  "home",
  "log",
+ "regex",
  "remove_dir_all",
  "serde",
  "serde_json",
@@ -702,18 +725,20 @@ dependencies = [
 
 [[package]]
 name = "esp-idf-hal"
-version = "0.42.5"
+version = "0.44.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce384db3f3d6d58b93be8aaaa07ce3ab222768f92ab76bb35710803bf790bce2"
+checksum = "bfa893ab84c4a7db5ca42ab45e2e09942412976fe3100a9dd72e56ba0a9a58b4"
 dependencies = [
  "atomic-waker",
  "embassy-sync",
  "embedded-can",
  "embedded-hal 0.2.7",
- "embedded-hal 1.0.0-rc.1",
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
  "embedded-hal-nb",
  "embedded-io",
- "embuild",
+ "embedded-io-async",
+ "embuild 0.32.0",
  "enumset",
  "esp-idf-sys",
  "heapless",
@@ -724,13 +749,14 @@ dependencies = [
 
 [[package]]
 name = "esp-idf-svc"
-version = "0.47.3"
+version = "0.49.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e2bd20db9af5a3b96823b38f39e6aafcc1bcfa3e5e7d9a0777101f1f301eba5"
+checksum = "ac42f9303792348e3217c570b0f0d8280a381d053bcb730c3018ec6873928513"
 dependencies = [
  "embassy-futures",
+ "embedded-hal-async",
  "embedded-svc",
- "embuild",
+ "embuild 0.32.0",
  "enumset",
  "esp-idf-hal",
  "heapless",
@@ -741,16 +767,16 @@ dependencies = [
 
 [[package]]
 name = "esp-idf-sys"
-version = "0.33.7"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8664fadad7089802837c2ec75814a98b39473bc127442f2975973136f803fe17"
+checksum = "bb97e3800686a4d64f3c0a9998be3d6f16c903bca2a425746e97f00ed28cde5e"
 dependencies = [
  "anyhow",
  "bindgen",
  "build-time",
  "cargo_metadata",
  "const_format",
- "embuild",
+ "embuild 0.32.0",
  "envy",
  "libc",
  "regex",
@@ -764,7 +790,7 @@ name = "examples"
 version = "0.1.0"
 dependencies = [
  "components",
- "embuild",
+ "embuild 0.31.4",
  "esp-idf-svc",
  "log",
  "rainmaker",
@@ -919,9 +945,9 @@ dependencies = [
 
 [[package]]
 name = "hash32"
-version = "0.2.1"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0c35f58762feb77d74ebe43bdbc3210f09be9fe6742234d573bacc26ed92b67"
+checksum = "47d60b12902ba28e2730cd37e95b8c9223af2808df9e902d4df49588d1470606"
 dependencies = [
  "byteorder",
 ]
@@ -934,14 +960,11 @@ checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
 
 [[package]]
 name = "heapless"
-version = "0.7.17"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdc6457c0eb62c71aac4bc17216026d8410337c4126773b9c5daba343f17964f"
+checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
 dependencies = [
- "atomic-polyfill",
  "hash32",
- "rustc_version",
- "spin",
  "stable_deref_trait",
 ]
 
@@ -1169,12 +1192,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "no-std-net"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bcece43b12349917e096cddfa66107277f123e6c96a5aea78711dc601a47152"
-
-[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1257,12 +1274,6 @@ name = "openssl-probe"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
-
-[[package]]
-name = "peeking_take_while"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
 
 [[package]]
 name = "petgraph"
@@ -1556,15 +1567,6 @@ name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
-
-[[package]]
-name = "rustc_version"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfa0f585226d2e68097d4f95d113b15b83a82e819ab25717ec0590d9584ef366"
-dependencies = [
- "semver",
-]
 
 [[package]]
 name = "rustix"

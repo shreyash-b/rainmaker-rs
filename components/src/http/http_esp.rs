@@ -1,9 +1,13 @@
 #![cfg(target_os = "espidf")]
 
-use embedded_svc::{http::Headers, io::Read};
+use embedded_svc::http::Headers;
+
 use esp_idf_svc::{
-    http::server::{EspHttpConnection, EspHttpServer, Request},
-    io::Write,
+    http::{
+        server::{EspHttpConnection, EspHttpServer, Request},
+        // Headers,
+    },
+    io::{Read, Write},
 };
 
 use crate::{error::Error, http::base::*};
@@ -49,7 +53,7 @@ impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
 }
 
 impl<'a> HttpServer<esp_idf_svc::http::server::EspHttpServer<'a>> {
-    pub fn new(config: &HttpConfiguration) -> Result<Self, Error> {
+    pub fn new(config: HttpConfiguration) -> Result<Self, Error> {
         let http_config = esp_idf_svc::http::server::Configuration {
             http_port: config.port,
             ..Default::default()
@@ -64,15 +68,17 @@ impl<'a> HttpServer<esp_idf_svc::http::server::EspHttpServer<'a>> {
         callback: Box<dyn Fn(HttpRequest) -> HttpResponse + Send + 'static>,
     ) {
         self.0
-            .fn_handler(path.as_str(), method.into(), move |mut req| {
-                let user_req = HttpRequest::from(&mut req);
-                let user_response = callback(user_req);
-                req.into_ok_response()
-                    .unwrap()
-                    .write_all(&user_response.get_bytes_vectored())
-                    .unwrap();
-                Ok(())
-            })
+            .fn_handler(
+                path.as_str(),
+                method.into(),
+                move |mut req| -> Result<(), Error> {
+                    let user_req = HttpRequest::from(&mut req);
+                    let user_response = callback(user_req);
+                    req.into_ok_response()?
+                        .write_all(&user_response.get_bytes_vectored())?;
+                    Ok(())
+                },
+            )
             .unwrap();
     }
 }

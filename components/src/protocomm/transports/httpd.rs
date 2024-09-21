@@ -16,7 +16,7 @@ pub(crate) struct TransportHttpd<'a> {
 
 impl<'a> TransportHttpd<'a> {
     pub fn new(config: HttpConfiguration) -> Self {
-        let http_server = HttpServer::new(&config).unwrap();
+        let http_server = HttpServer::new(config).unwrap();
         Self {
             http_server,
             phantom: PhantomData,

@@ -1,5 +1,4 @@
-use std::io::Error;
-
+use crate::error::Error;
 use crate::mqtt::base::*;
 
 impl From<&rumqttc::QoS> for QoSLevel {
@@ -22,17 +21,17 @@ impl From<&QoSLevel> for rumqttc::QoS {
     }
 }
 
-impl From<&rumqttc::Publish> for ReceivedMessage {
-    fn from(value: &rumqttc::Publish) -> Self {
+impl From<rumqttc::Publish> for ReceivedMessage {
+    fn from(value: rumqttc::Publish) -> Self {
         Self {
-            topic: value.topic.clone(),
+            topic: value.topic,
             payload: value.payload.to_vec(),
         }
     }
 }
 
-impl From<&rumqttc::Event> for MqttEvent {
-    fn from(value: &rumqttc::Event) -> Self {
+impl From<rumqttc::Event> for MqttEvent {
+    fn from(value: rumqttc::Event) -> Self {
         match value {
             rumqttc::Event::Incoming(e) => match e {
                 rumqttc::Packet::ConnAck(_) => MqttEvent::Connected,
@@ -72,7 +71,7 @@ impl MqttClient<rumqttc::Client> {
         std::thread::spawn(move || {
             for notification in conn.iter() {
                 match notification {
-                    Ok(notif) => callback(MqttEvent::from(&notif)),
+                    Ok(notif) => callback(notif.into()),
                     Err(e) => log::error!("error while executing callback: {:?}", e),
                 };
             }

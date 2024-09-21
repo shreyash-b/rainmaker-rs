@@ -56,7 +56,7 @@ pub struct HttpServerLinux {
 }
 
 impl HttpServer<HttpServerLinux> {
-    pub fn new(config: &HttpConfiguration) -> Result<Self, Error> {
+    pub fn new(config: HttpConfiguration) -> Result<Self, Error> {
         let callbacks: HashMap<String, HttpCallbackMethodMapping<'static>> = HashMap::new();
         let callbacks_mutex = wrap_in_arc_mutex(callbacks);
         let callbacks_mutex_clone = callbacks_mutex.clone();
