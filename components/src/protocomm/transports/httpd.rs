@@ -1,5 +1,4 @@
 use crate::http::{HttpConfiguration, HttpMethod, HttpRequest, HttpResponse, HttpServer};
-use crate::protocomm::transports::TransportTrait;
 use crate::protocomm::{protocomm_req_handler, CallbackData};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
@@ -27,10 +26,8 @@ impl<'a> TransportHttpd<'a> {
     pub(crate) fn register_cb_data(&mut self, data: Arc<Mutex<CallbackData>>) {
         self.cb_data = Some(data)
     }
-}
 
-impl<'a> TransportTrait for TransportHttpd<'a> {
-    fn add_endpoint(&mut self, ep_name: &str, cb: impl TransportCallbackType) {
+    pub(crate) fn add_endpoint(&mut self, ep_name: &str, cb: impl TransportCallbackType) {
         let http_server = &mut self.http_server;
         let ep = "/".to_string() + ep_name;
         // doing this works for small number of arguments

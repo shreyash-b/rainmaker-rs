@@ -5,6 +5,9 @@ use components::protocomm::*;
 use components::wifi::*;
 use serde_json::json;
 
+#[cfg(target_os = "espidf")]
+use transports::gatt::BleConfig;
+
 use crate::error::RMakerError;
 use crate::utils::wrap_in_arc_mutex;
 use crate::utils::WrappedInArcMutex;
@@ -15,10 +18,20 @@ const CAP_WIFI_SCAN: &str = "wifi_scan"; // wifi scan capability
 const CAP_NO_SEC: &str = "no_sec"; // capability signifying sec0
 const CAP_NO_POP: &str = "no_pop"; // no PoP in case of sec1 and sec2
 
-#[derive(Default)]
+#[derive(Debug)]
 pub enum WifiProvScheme {
-    #[default]
     SoftAP,
+    #[cfg(target_os = "espidf")]
+    BLE,
+}
+
+impl Default for WifiProvScheme {
+    fn default() -> Self {
+        #[cfg(target_os = "espidf")]
+        return Self::BLE;
+        #[cfg(not(target_os = "espidf"))]
+        return Self::SoftAP;
+    }
 }
 
 #[derive(Default)]
@@ -43,8 +56,18 @@ impl<'a> WifiProvisioningMgr<'a> {
         nvs_partition: NvsPartition,
     ) -> Self {
         let version_info = Self::get_version_info(&config.security);
+        let device_name = format!("PROV_{}", config.device_name.to_uppercase());
+
         let protocomm_config = ProtocommConfig {
-            transport: ProtocomTransportConfig::Httpd(HttpConfiguration::default()),
+            transport: match config.scheme {
+                WifiProvScheme::SoftAP => {
+                    ProtocomTransportConfig::Httpd(HttpConfiguration::default())
+                }
+                #[cfg(target_os = "espidf")]
+                WifiProvScheme::BLE => ProtocomTransportConfig::Ble(BleConfig {
+                    device_name: device_name.clone(),
+                }),
+            },
             security: config.security,
         };
 
@@ -53,7 +76,7 @@ impl<'a> WifiProvisioningMgr<'a> {
         Self {
             protocomm,
             wifi_client,
-            device_name: config.device_name,
+            device_name,
             version_string: version_info,
             nvs_partition,
         }
@@ -68,8 +91,7 @@ impl<'a> WifiProvisioningMgr<'a> {
     }
 
     pub fn init(&mut self) {
-        let device_name = &self.device_name;
-        self.init_ap(device_name);
+        self.init_ap();
         self.register_listeners(self.version_string.clone());
     }
 
@@ -83,13 +105,14 @@ impl<'a> WifiProvisioningMgr<'a> {
         drop(wifi_driv);
 
         self.print_prov_url();
+        self.protocomm.start();
 
         Ok(())
     }
 
     pub fn add_endpoint<T>(&mut self, endpoint: &str, callback: T)
     where
-        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
+        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static + Clone,
     {
         let pc = &mut self.protocomm;
 
@@ -196,10 +219,10 @@ impl<'a> WifiProvisioningMgr<'a> {
         .unwrap();
     }
 
-    fn init_ap(&self, device_name: &String) {
+    fn init_ap(&self) {
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         let apconf = WifiApConfig {
-            ssid: format!("PROV_{}", device_name),
+            ssid: self.device_name.clone(),
             ..Default::default()
         };
 

@@ -6,9 +6,13 @@ use crate::{error::Error, http::HttpConfiguration};
 pub use prost::Message;
 pub use proto::*;
 use std::collections::HashMap;
+
+#[cfg(target_os = "espidf")]
+use transports::gatt::{BleConfig, TransportGatt};
+
 use transports::httpd::TransportHttpd;
 
-use transports::TransportTrait;
+use transports::ProtocommTransport;
 
 pub use self::security::ProtocommSecurity;
 use self::security::SecurityTrait;
@@ -18,6 +22,8 @@ const LOGGER_TAG: &str = "protocomm";
 
 pub enum ProtocomTransportConfig {
     Httpd(HttpConfiguration),
+    #[cfg(target_os = "espidf")]
+    Ble(BleConfig),
 }
 
 pub struct ProtocommConfig {
@@ -40,7 +46,7 @@ pub struct CallbackData {
 }
 
 pub struct Protocomm<'a> {
-    transport: TransportHttpd<'a>, // change this to accepting trait after implementing BLE transport
+    transport: ProtocommTransport<'a>,
     cb_data: WrappedInArcMutex<CallbackData>,
 }
 
@@ -51,19 +57,24 @@ impl<'a> Protocomm<'a> {
             ..Default::default()
         });
 
-        let mut httpd = match config.transport {
-            ProtocomTransportConfig::Httpd(http_config) => TransportHttpd::new(http_config),
+        let mut transport = match config.transport {
+            #[cfg(target_os = "espidf")]
+            ProtocomTransportConfig::Ble(ble_config) => {
+                ProtocommTransport::Ble(TransportGatt::new(ble_config))
+            }
+            ProtocomTransportConfig::Httpd(http_config) => {
+                ProtocommTransport::Httpd(TransportHttpd::new(http_config))
+            }
         };
-        httpd.register_cb_data(cb_data.clone());
-        Self {
-            transport: httpd,
-            cb_data,
-        }
+
+        transport.register_cb_data(cb_data.clone());
+
+        Self { transport, cb_data }
     }
 
     pub fn register_endpoint<T>(&mut self, ep_name: &str, callback: T) -> Result<(), Error>
     where
-        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
+        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static + Clone,
     {
         self.register_endpoint_internal(ep_name, callback, EndpointType::Other)
     }
@@ -92,7 +103,7 @@ impl<'a> Protocomm<'a> {
         ep_type: EndpointType,
     ) -> Result<(), Error>
     where
-        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
+        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static + Clone,
     {
         let mut ep_data = self.cb_data.as_ref().lock().unwrap();
         ep_data.ep_ype.insert(ep_name.to_string(), ep_type);
@@ -101,6 +112,10 @@ impl<'a> Protocomm<'a> {
         log::debug!(target: LOGGER_TAG, "registered handler for {ep_name}");
 
         Ok(())
+    }
+
+    pub fn start(&mut self) {
+        self.transport.start();
     }
 }
 
