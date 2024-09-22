@@ -231,10 +231,6 @@ pub fn report_params(device_name: &str, params: HashMap<String, Value>) {
         device_name: params
     });
 
-    log::info!("reporting params: {}", updated_params.to_string());
-    // let mqtt = self.mqtt_client.as_ref().unwrap();
-    // let mut mqtt = mqtt.lock().unwrap();
-
     let local_params_topic = format!("node/{}/params/local", NODEID.as_str());
     rmaker_mqtt::publish(&local_params_topic, updated_params.to_string().into_bytes()).unwrap();
 }

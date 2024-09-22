@@ -35,6 +35,7 @@ fn create_switch_device(device_name: &str) -> Device {
 
 fn switch_cb(params: HashMap<String, Value>) {
     log::info!("Received update: {:?}", params);
+    log::info!("Reporting: {:?}", params);
     rainmaker::report_params("Switch", params);
 }
 

@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
-use log::{error, info};
+use log::error;
 
 use crate::error::Error;
 use crate::http::base::*;
@@ -121,7 +121,7 @@ impl HttpServer<HttpServerLinux> {
         let callbacks_hashmap = paths_hmap.get_mut(&path).unwrap();
         match callbacks_hashmap.try_insert(method, Box::new(callback)) {
             Ok(_) => {
-                info!(target: LOGGER_TARGET, "successfully registered handler for {path}")
+                log::debug!(target: LOGGER_TARGET, "Registered handler for {path}")
             }
             Err(_) => {
                 error!(target: LOGGER_TARGET, "handler for {path} for already exists");
