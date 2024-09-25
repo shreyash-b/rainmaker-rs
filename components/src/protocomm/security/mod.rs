@@ -1,9 +1,9 @@
 pub(crate) mod sec0;
 pub(crate) mod sec1;
 pub(crate) trait SecurityTrait: Default {
-    fn security_handler(&mut self, ep: String, data: Vec<u8>) -> Vec<u8>;
-    fn encrypt(&mut self, indata: &mut [u8]); // encryption in-place
-    fn decrypt(&mut self, indata: &mut [u8]); // decryption in-place
+    fn security_handler(&self, ep: &str, data: Vec<u8>) -> Vec<u8>;
+    fn encrypt(&self, indata: &mut [u8]); // encryption in-place
+    fn decrypt(&self, indata: &mut [u8]); // decryption in-place
 }
 
 pub enum ProtocommSecurity {
@@ -30,21 +30,21 @@ impl ProtocommSecurity {
 }
 
 impl SecurityTrait for ProtocommSecurity {
-    fn security_handler(&mut self, ep: String, data: Vec<u8>) -> Vec<u8> {
+    fn security_handler(&self, ep: &str, data: Vec<u8>) -> Vec<u8> {
         match self {
             ProtocommSecurity::Sec0(sec_inner) => sec_inner.security_handler(ep, data),
             ProtocommSecurity::Sec1(sec_inner) => sec_inner.security_handler(ep, data),
         }
     }
 
-    fn encrypt(&mut self, indata: &mut [u8]) {
+    fn encrypt(&self, indata: &mut [u8]) {
         match self {
             ProtocommSecurity::Sec0(sec_inner) => sec_inner.encrypt(indata),
             ProtocommSecurity::Sec1(sec_inner) => sec_inner.encrypt(indata),
         }
     }
 
-    fn decrypt(&mut self, indata: &mut [u8]) {
+    fn decrypt(&self, indata: &mut [u8]) {
         match self {
             ProtocommSecurity::Sec0(sec_inner) => sec_inner.decrypt(indata),
             ProtocommSecurity::Sec1(sec_inner) => sec_inner.decrypt(indata),

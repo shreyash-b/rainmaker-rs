@@ -36,7 +36,7 @@ pub struct WifiProvisioningMgr<'a> {
     nvs_partition: NvsPartition,
 }
 
-impl<'a> WifiProvisioningMgr<'a> {
+impl WifiProvisioningMgr<'_> {
     pub fn new(
         wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
         config: WifiProvisioningConfig,
@@ -87,10 +87,7 @@ impl<'a> WifiProvisioningMgr<'a> {
         Ok(())
     }
 
-    pub fn add_endpoint<T>(&mut self, endpoint: &str, callback: T)
-    where
-        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
-    {
+    pub fn add_endpoint(&mut self, endpoint: &str, callback: ProtocommCallbackType) {
         let pc = &mut self.protocomm;
 
         pc.register_endpoint(endpoint, callback).unwrap();
@@ -180,19 +177,25 @@ impl<'a> WifiProvisioningMgr<'a> {
         pc.set_version_endpoint("proto-ver", version_info.to_string())
             .unwrap();
 
-        pc.register_endpoint("prov-config", move |ep, data| -> Vec<u8> {
-            prov_config_callback(
-                ep,
-                data,
-                wifi_driv_prov_config.to_owned(),
-                nvs_partition.to_owned(),
-            )
-        })
+        pc.register_endpoint(
+            "prov-config",
+            Box::new(move |ep, data| -> Vec<u8> {
+                prov_config_callback(
+                    ep,
+                    data,
+                    wifi_driv_prov_config.to_owned(),
+                    nvs_partition.to_owned(),
+                )
+            }),
+        )
         .unwrap();
 
-        pc.register_endpoint("prov-scan", move |ep, data| -> Vec<u8> {
-            prov_scan_callback(ep, data, wifi_driv_prov_scan.to_owned())
-        })
+        pc.register_endpoint(
+            "prov-scan",
+            Box::new(move |ep, data| -> Vec<u8> {
+                prov_scan_callback(ep, data, wifi_driv_prov_scan.to_owned())
+            }),
+        )
         .unwrap();
     }
 
@@ -227,7 +230,7 @@ impl<'a> WifiProvisioningMgr<'a> {
 }
 
 fn prov_config_callback(
-    _ep: String,
+    _ep: &str,
     data: Vec<u8>,
     wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
     nvs_partition: NvsPartition,
@@ -246,7 +249,7 @@ fn prov_config_callback(
 }
 
 fn prov_scan_callback(
-    _ep: String,
+    _ep: &str,
     data: Vec<u8>,
     wifi_driv: WrappedInArcMutex<WifiMgr<'_>>,
 ) -> Vec<u8> {

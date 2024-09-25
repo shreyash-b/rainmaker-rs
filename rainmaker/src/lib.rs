@@ -110,9 +110,9 @@ where
 
     pub fn reg_user_mapping_ep(&self, prov_msg: &mut WifiProvisioningMgr) {
         let node_id = self.get_node_id();
-        prov_msg.add_endpoint("cloud_user_assoc", move |ep, data| -> Vec<u8> {
+        prov_msg.add_endpoint("cloud_user_assoc", Box::new(move |ep, data| -> Vec<u8> {
             cloud_user_assoc_callback(ep, data, node_id.to_owned())
-        })
+        }))
     }
 
     #[cfg(target_os = "linux")]
@@ -171,7 +171,7 @@ fn remote_params_callback(msg: ReceivedMessage, node: Arc<Node<'_>>) {
     }
 }
 
-fn cloud_user_assoc_callback(_ep: String, data: Vec<u8>, node_id: String) -> Vec<u8> {
+fn cloud_user_assoc_callback(_ep: &str, data: Vec<u8>, node_id: String) -> Vec<u8> {
     let req_proto = RMakerConfigPayload::decode(&*data).unwrap();
     let req_payload = req_proto.payload.unwrap();
 

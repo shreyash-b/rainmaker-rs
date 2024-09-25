@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use crate::protocomm::{
     sec1_payload, session_data, Sec1MsgType, Sec1Payload, SecSchemeVersion, SessionCmd0,
     SessionCmd1, SessionData, SessionResp0, SessionResp1, Status,
@@ -32,7 +34,7 @@ fn debug_u8_arr_as_hex(name: &str, inp: &[u8]) {
 #[derive(Default)]
 pub struct Sec1 {
     pub pop: Option<String>,
-    pub(crate) sec_data: Sec1Data,
+    pub(crate) sec_data: Mutex<Sec1Data>,
 }
 
 #[derive(Default)]
@@ -44,7 +46,7 @@ pub(crate) struct Sec1Data {
 }
 
 impl Sec1 {
-    fn handle_cmd0(&mut self, in_proto: SessionCmd0) -> SessionResp0 {
+    fn handle_cmd0(&self, in_proto: SessionCmd0) -> SessionResp0 {
         let client_pub_key = in_proto.client_pubkey;
         let device_ecdh_keypair = KeyPair::generate();
         let client_pub = PublicKey::from_slice(&client_pub_key).unwrap();
@@ -82,20 +84,27 @@ impl Sec1 {
             device_random: device_random.to_vec(),
         };
 
-        self.sec_data.cipher = Some(cipher);
-        self.sec_data.random = device_random;
-        self.sec_data.device_keypair = Some(device_ecdh_keypair);
-        self.sec_data.client_pubkey = Some(client_pub_key);
+        let mut data = self.sec_data.lock().unwrap();
+
+        data.cipher = Some(cipher);
+        data.random = device_random;
+        data.device_keypair = Some(device_ecdh_keypair);
+        data.client_pubkey = Some(client_pub_key);
+
+        drop(data);
 
         out_data
     }
 
-    fn handle_cmd1(&mut self, in_proto: SessionCmd1) -> SessionResp1 {
+    fn handle_cmd1(&self, in_proto: SessionCmd1) -> SessionResp1 {
+        let mut data = self.sec_data.lock().unwrap();
         let mut client_verify_data = in_proto.client_verify_data;
-        let device_pub_key = self.sec_data.device_keypair.as_ref().unwrap().pk.as_ref();
+        let mut client_pubkey = data.client_pubkey.as_ref().unwrap().clone();
+        let device_pub_key = data.device_keypair.as_ref().unwrap().pk.as_ref().to_vec();
 
-        let cipher = self.sec_data.cipher.as_mut().unwrap();
+        let cipher = data.cipher.as_mut().unwrap();
         cipher.apply_keystream(&mut client_verify_data);
+        cipher.apply_keystream(&mut client_pubkey);
 
         debug_u8_arr_as_hex("client verfier", &client_verify_data);
 
@@ -105,8 +114,7 @@ impl Sec1 {
             log::debug!(target: LOGGER_TAG, "Could not verify client data");
         }
 
-        let mut client_pubkey = self.sec_data.client_pubkey.as_ref().unwrap().clone(); // remove this clone later
-        cipher.apply_keystream(&mut client_pubkey);
+        drop(data);
         debug_u8_arr_as_hex("sending device verifier", &client_pubkey);
 
         SessionResp1 {
@@ -117,7 +125,7 @@ impl Sec1 {
 }
 
 impl SecurityTrait for Sec1 {
-    fn security_handler(&mut self, _ep: String, data: Vec<u8>) -> Vec<u8> {
+    fn security_handler(&self, _ep: &str, data: Vec<u8>) -> Vec<u8> {
         let proto_decode = SessionData::decode(data.as_ref());
 
         let in_proto = match proto_decode {
@@ -157,12 +165,13 @@ impl SecurityTrait for Sec1 {
         out_proto.encode_to_vec()
     }
 
-    fn encrypt(&mut self, input: &mut [u8]) {
-        let cipher = self.sec_data.cipher.as_mut().unwrap();
+    fn encrypt(&self, input: &mut [u8]) {
+        let mut data = self.sec_data.lock().unwrap();
+        let cipher = data.cipher.as_mut().unwrap();
         cipher.apply_keystream(input);
     }
 
-    fn decrypt(&mut self, input: &mut [u8]) {
+    fn decrypt(&self, input: &mut [u8]) {
         self.encrypt(input)
     }
 }

@@ -9,6 +9,4 @@ pub type HttpServer<'a> = base::HttpServer<esp_idf_svc::http::server::EspHttpSer
 
 #[cfg(target_os = "linux")]
 #[allow(private_interfaces)] // HttpServerLinux need not be visible outside
-pub type HttpServer<'a> = base::HttpServer<http_linux::HttpServerLinux>;
-
-// todo: concurrency on linux
+pub type HttpServer<'a> = base::HttpServer<http_linux::HttpServerLinux<'a>>;

@@ -3,14 +3,16 @@
 static LOGGER_TARGET: &str = "http_server";
 
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::net::SocketAddr;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 
 use log::error;
 
 use crate::error::Error;
 use crate::http::base::*;
+use crate::utils::{wrap_in_arc_mutex, WrappedInArcMutex};
 
 impl From<&tiny_http::Method> for HttpMethod {
     fn from(inp: &tiny_http::Method) -> Self {
@@ -37,25 +39,21 @@ impl From<&mut tiny_http::Request> for HttpRequest {
 }
 
 pub trait HttpEndpointCallback<'a> = Fn(HttpRequest) -> HttpResponse + Send + Sync + 'a;
-type WrappedInArcMutex<T> = Arc<Mutex<T>>;
-
-fn wrap_in_arc_mutex<T>(inp: T) -> WrappedInArcMutex<T> {
-    Arc::new(Mutex::new(inp))
-}
 
 // http server from esp-idf-svc starts listening as soon as it is initialized and supports registering callback handlers later on
 // however tiny_http is a blocking server
 // we linux http server with idf by creating a hashmap mutex and spawning tiny_http in a separate thread
 type HttpCallbackMethodMapping<'a> = HashMap<HttpMethod, Box<dyn HttpEndpointCallback<'static>>>;
-pub struct HttpServerLinux {
+pub struct HttpServerLinux<'a> {
     // inner hashmap to store mapping of endpoint method with callback
     // outer hashmap to store mapping to endpoint url with inner hashmap
     callbacks: WrappedInArcMutex<HashMap<String, HttpCallbackMethodMapping<'static>>>,
     execution_thread_handle: Option<JoinHandle<()>>,
     executor_channel: mpsc::Sender<()>,
+    phantom_data: PhantomData<&'a ()>,
 }
 
-impl HttpServer<HttpServerLinux> {
+impl HttpServer<HttpServerLinux<'_>> {
     pub fn new(config: HttpConfiguration) -> Result<Self, Error> {
         let callbacks: HashMap<String, HttpCallbackMethodMapping<'static>> = HashMap::new();
         let callbacks_mutex = wrap_in_arc_mutex(callbacks);
@@ -106,6 +104,7 @@ impl HttpServer<HttpServerLinux> {
             callbacks: callbacks_mutex,
             execution_thread_handle: Some(executor_joinhandle),
             executor_channel: sender,
+            phantom_data: PhantomData,
         }))
     }
 
@@ -130,7 +129,7 @@ impl HttpServer<HttpServerLinux> {
     }
 }
 
-impl Drop for HttpServerLinux {
+impl Drop for HttpServerLinux<'_> {
     fn drop(&mut self) {
         // send a message to stop the server from listening
         self.executor_channel.send(()).unwrap();
