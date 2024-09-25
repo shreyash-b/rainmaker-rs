@@ -9,6 +9,7 @@ use serde_json::Value;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 fn initializse_logger() {
@@ -59,8 +60,11 @@ fn main() -> Result<(), RMakerError> {
         device_name: "Switch".to_string(),
         ..Default::default()
     };
-    let mut prov_mgr =
-        WifiProvisioningMgr::new(wifi_arc_mutex, provisioning_config, nvs_partition.clone());
+    let mut prov_mgr = WifiProvisioningMgr::new(
+        wifi_arc_mutex.clone(),
+        provisioning_config,
+        nvs_partition.clone(),
+    );
 
     if WifiProvisioningMgr::get_provisioned_creds(nvs_partition.clone()).is_some() {
         log::info!("Device is already provisioned");
@@ -70,9 +74,9 @@ fn main() -> Result<(), RMakerError> {
         prov_mgr.start()?;
     }
 
-    while WifiProvisioningMgr::get_provisioned_creds(nvs_partition.clone()).is_none() {
-        log::info!("Waiting for provisioning...");
-        std::thread::sleep(std::time::Duration::from_secs(1));
+    while !wifi_arc_mutex.lock().unwrap().is_connected() {
+        // wait for wifi to connect before starting rainmaker
+        std::thread::sleep(Duration::from_secs(1));
     }
 
     prov_mgr.connect()?;
