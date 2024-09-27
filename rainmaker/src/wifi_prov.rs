@@ -1,9 +1,9 @@
-use components::http::HttpConfiguration;
 use components::persistent_storage::Nvs;
 use components::persistent_storage::NvsPartition;
 use components::protocomm::*;
 use components::wifi::*;
 use serde_json::json;
+use transports::ble::TransportBleConfig;
 
 use crate::error::RMakerError;
 use crate::utils::wrap_in_arc_mutex;
@@ -15,10 +15,11 @@ const CAP_WIFI_SCAN: &str = "wifi_scan"; // wifi scan capability
 const CAP_NO_SEC: &str = "no_sec"; // capability signifying sec0
 const CAP_NO_POP: &str = "no_pop"; // no PoP in case of sec1 and sec2
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub enum WifiProvScheme {
-    #[default]
     SoftAP,
+    #[default]
+    Ble,
 }
 
 #[derive(Default)]
@@ -28,23 +29,31 @@ pub struct WifiProvisioningConfig {
     pub security: ProtocommSecurity,
 }
 
-pub struct WifiProvisioningMgr<'a> {
-    protocomm: Protocomm<'a>,
+pub struct WifiProvisioningMgr {
+    protocomm: Protocomm,
     wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
     device_name: String,
     version_string: String,
     nvs_partition: NvsPartition,
+    scheme: WifiProvScheme,
 }
 
-impl WifiProvisioningMgr<'_> {
+impl WifiProvisioningMgr {
     pub fn new(
         wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
         config: WifiProvisioningConfig,
         nvs_partition: NvsPartition,
     ) -> Self {
         let version_info = Self::get_version_info(&config.security);
+        let device_name = format!("PROV_{}", config.device_name.to_uppercase());
         let protocomm_config = ProtocommConfig {
-            transport: ProtocomTransportConfig::Httpd(HttpConfiguration::default()),
+            transport: match &config.scheme {
+                WifiProvScheme::SoftAP => ProtocomTransportConfig::Httpd(Default::default()),
+                WifiProvScheme::Ble => ProtocomTransportConfig::Ble(TransportBleConfig {
+                    device_name: device_name.clone(),
+                    ..Default::default()
+                }),
+            },
             security: config.security,
         };
 
@@ -53,7 +62,8 @@ impl WifiProvisioningMgr<'_> {
         Self {
             protocomm,
             wifi_client,
-            device_name: config.device_name,
+            device_name,
+            scheme: config.scheme,
             version_string: version_info,
             nvs_partition,
         }
@@ -68,8 +78,12 @@ impl WifiProvisioningMgr<'_> {
     }
 
     pub fn init(&mut self) {
-        let device_name = &self.device_name;
-        self.init_ap(device_name);
+        match self.scheme {
+            WifiProvScheme::SoftAP => {
+                self.init_ap();
+            }
+            WifiProvScheme::Ble => {}
+        }
         self.register_listeners(self.version_string.clone());
     }
 
@@ -81,6 +95,7 @@ impl WifiProvisioningMgr<'_> {
         wifi_driv.set_client_config(WifiClientConfig::default())?;
         wifi_driv.start()?;
         drop(wifi_driv);
+        self.protocomm.start();
 
         self.print_prov_url();
 
@@ -196,10 +211,10 @@ impl WifiProvisioningMgr<'_> {
         .unwrap();
     }
 
-    fn init_ap(&self, device_name: &String) {
+    fn init_ap(&self) {
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         let apconf = WifiApConfig {
-            ssid: format!("PROV_{}", device_name),
+            ssid: self.device_name.clone(),
             ..Default::default()
         };
 
@@ -208,10 +223,15 @@ impl WifiProvisioningMgr<'_> {
 
     fn print_prov_url(&self) {
         let device_name = &self.device_name;
+        let transport = match self.scheme {
+            WifiProvScheme::SoftAP => "softap",
+            WifiProvScheme::Ble => "ble",
+        };
+
         let data_json = json!({
             "ver":"v1",
             "name": format!("PROV_{device_name}"),
-            "transport":"softap" // becoz no ble
+            "transport": transport
         });
 
         let qr_url = format!(
