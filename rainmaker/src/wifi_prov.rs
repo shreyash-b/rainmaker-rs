@@ -120,18 +120,15 @@ impl WifiProvisioningMgr<'_> {
     }
 
     pub fn connect(&mut self) -> Result<(), RMakerError> {
-        match Self::get_provisioned_creds(self.nvs_partition.clone()) {
-            Some((ssid, pass)) => {
-                let mut wifi = self.wifi_client.lock().unwrap();
-                wifi.set_client_config(WifiClientConfig {
-                    ssid,
-                    password: pass,
-                    ..Default::default()
-                })?;
-                wifi.start()?;
-                wifi.assured_connect();
-            }
-            None => todo!(),
+        if let Some((ssid, pass)) = Self::get_provisioned_creds(self.nvs_partition.clone()) {
+            let mut wifi = self.wifi_client.lock().unwrap();
+            wifi.set_client_config(WifiClientConfig {
+                ssid,
+                password: pass,
+                ..Default::default()
+            })?;
+            wifi.start()?;
+            wifi.assured_connect();
         }
 
         Ok(())
