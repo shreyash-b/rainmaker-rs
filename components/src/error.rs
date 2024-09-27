@@ -46,3 +46,12 @@ impl From<pickledb::error::Error> for Error {
         Self(msg)
     }
 }
+
+#[cfg(target_os = "linux")]
+impl From<bluer::Error> for Error {
+    fn from(value: bluer::Error) -> Self {
+        let msg = format!("Bluer Error: {}", value.message);
+
+        Self(msg)
+    }
+}

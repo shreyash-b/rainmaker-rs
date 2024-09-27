@@ -32,6 +32,9 @@ impl<'a> TransportTrait for TransportHttpd<'a> {
             Box::new(move |req| -> HttpResponse { http_callback(req, &cb, &ep_type, &sec) }),
         );
     }
+
+    // Do nothing since HTTP Server starts when initialized
+    fn start(&mut self) {}
 }
 
 fn http_callback(

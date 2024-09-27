@@ -6,6 +6,7 @@ use crate::{error::Error, http::HttpConfiguration};
 pub use prost::Message;
 pub use proto::*;
 use std::sync::Arc;
+use transports::ble::{TransportBle, TransportBleConfig};
 use transports::httpd::TransportHttpd;
 
 use transports::TransportTrait;
@@ -19,6 +20,7 @@ pub type ProtocommCallbackType = Box<dyn Fn(&str, Vec<u8>) -> Vec<u8> + Send + S
 
 pub enum ProtocomTransportConfig {
     Httpd(HttpConfiguration),
+    Ble(TransportBleConfig),
 }
 
 pub struct ProtocommConfig {
@@ -34,20 +36,27 @@ pub(crate) enum EndpointType {
     Other,
 }
 
-pub struct Protocomm<'a> {
-    transport: TransportHttpd<'a>, // change this to accepting trait after implementing BLE transport
+pub struct Protocomm {
+    transport: Box<dyn TransportTrait>, // change this to accepting trait after implementing BLE transport
     sec: Arc<ProtocommSecurity>,
 }
 
-impl<'a> Protocomm<'a> {
+impl Protocomm {
     pub fn new(config: ProtocommConfig) -> Self {
-        let httpd = match config.transport {
-            ProtocomTransportConfig::Httpd(http_config) => TransportHttpd::new(http_config),
+        let transport: Box<dyn TransportTrait> = match config.transport {
+            ProtocomTransportConfig::Httpd(config) => Box::new(TransportHttpd::new(config)),
+            ProtocomTransportConfig::Ble(config) => Box::new(TransportBle::new(config)),
         };
+
         Self {
-            transport: httpd,
+            transport,
             sec: Arc::new(config.security),
         }
+    }
+
+    pub fn start(&mut self) {
+        log::info!("Starting Protocomm");
+        self.transport.start();
     }
 
     pub fn register_endpoint(
