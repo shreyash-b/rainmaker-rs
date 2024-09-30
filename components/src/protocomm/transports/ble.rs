@@ -1,6 +1,5 @@
 use std::{cell::Cell, marker::PhantomData};
 
-use bluer::{id, UuidExt};
 use uuid::Uuid;
 
 use crate::{
@@ -54,7 +53,7 @@ impl TransportTrait for TransportBle<'_> {
         let value_mutex = wrap_in_arc_mutex(vec![]);
         let value_mutex_2 = value_mutex.clone();
         let new_characteristic = Characteristic {
-            uuid: Uuid::from_u16(0x1212 + self.count),
+            uuid: Uuid::from_u128((0x1212 + self.count) as u128),
             read: Some(Box::new(move || {
                 let val = value_mutex.lock().unwrap();
                 protocomm_req_handler(&ep_name, val.to_vec(), &cb, &ep_type, &sec)
@@ -64,7 +63,7 @@ impl TransportTrait for TransportBle<'_> {
                 *val = data;
             })),
             descriptors: vec![Descriptor {
-                uuid: id::Descriptor::GattCharacteristicUserDescription.into(),
+                uuid: Uuid::from_u128(0x290100001000800000805f9b34fb), // User Description Characteristic
                 value: ep_name_2.into(),
             }],
         };

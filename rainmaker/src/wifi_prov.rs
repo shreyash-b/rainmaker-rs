@@ -15,18 +15,11 @@ const CAP_WIFI_SCAN: &str = "wifi_scan"; // wifi scan capability
 const CAP_NO_SEC: &str = "no_sec"; // capability signifying sec0
 const CAP_NO_POP: &str = "no_pop"; // no PoP in case of sec1 and sec2
 
+#[derive(Debug, Default)]
 pub enum WifiProvScheme {
     SoftAP,
+    #[default]
     Ble,
-}
-
-impl Default for WifiProvScheme {
-    fn default() -> Self {
-        #[cfg(target_os = "linux")]
-        return Self::Ble;
-
-        Self::SoftAP
-    }
 }
 
 #[derive(Default)]
@@ -52,11 +45,12 @@ impl WifiProvisioningMgr {
         nvs_partition: NvsPartition,
     ) -> Self {
         let version_info = Self::get_version_info(&config.security);
+        let device_name = format!("PROV_{}", config.device_name.to_uppercase());
         let protocomm_config = ProtocommConfig {
             transport: match &config.scheme {
                 WifiProvScheme::SoftAP => ProtocomTransportConfig::Httpd(Default::default()),
                 WifiProvScheme::Ble => ProtocomTransportConfig::Ble(TransportBleConfig {
-                    device_name: format!("PROV_{}", config.device_name.to_uppercase()),
+                    device_name: device_name.clone(),
                     ..Default::default()
                 }),
             },
@@ -68,7 +62,7 @@ impl WifiProvisioningMgr {
         Self {
             protocomm,
             wifi_client,
-            device_name: config.device_name.to_uppercase(),
+            device_name,
             scheme: config.scheme,
             version_string: version_info,
             nvs_partition,
@@ -84,8 +78,12 @@ impl WifiProvisioningMgr {
     }
 
     pub fn init(&mut self) {
-        let device_name = &self.device_name;
-        self.init_ap(device_name);
+        match self.scheme {
+            WifiProvScheme::SoftAP => {
+                self.init_ap();
+            }
+            WifiProvScheme::Ble => {}
+        }
         self.register_listeners(self.version_string.clone());
     }
 
@@ -213,10 +211,10 @@ impl WifiProvisioningMgr {
         .unwrap();
     }
 
-    fn init_ap(&self, device_name: &String) {
+    fn init_ap(&self) {
         let mut wifi_driv = self.wifi_client.lock().unwrap();
         let apconf = WifiApConfig {
-            ssid: format!("PROV_{}", device_name),
+            ssid: self.device_name.clone(),
             ..Default::default()
         };
 
