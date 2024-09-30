@@ -314,7 +314,7 @@ fn handle_cmd_apply_config() -> Vec<u8> {
 
 fn handle_cmd_get_status(wifi_driv: WrappedInArcMutex<WifiMgr<'_>>) -> Vec<u8> {
     let wifi_driv = wifi_driv.lock().unwrap();
-    let wifi_client_config = wifi_driv.get_wifi_config().1.unwrap();
+    let wifi_client_config = wifi_driv.get_wifi_config().0.unwrap();
     let ip_addr = wifi_driv.get_ip_addr();
 
     drop(wifi_driv); // no longer needed

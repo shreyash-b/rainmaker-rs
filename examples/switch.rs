@@ -68,6 +68,7 @@ fn main() -> Result<(), RMakerError> {
 
     if WifiProvisioningMgr::get_provisioned_creds(nvs_partition.clone()).is_some() {
         log::info!("Device is already provisioned");
+        prov_mgr.connect()?;
     } else {
         log::info!("Device is not provisioned. Starting provisioning...");
         rmaker.reg_user_mapping_ep(&mut prov_mgr);
@@ -78,8 +79,6 @@ fn main() -> Result<(), RMakerError> {
         // wait for wifi to connect before starting rainmaker
         std::thread::sleep(Duration::from_secs(1));
     }
-
-    prov_mgr.connect()?;
 
     node.add_device(switch_device);
 
