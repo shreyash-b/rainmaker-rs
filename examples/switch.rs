@@ -1,5 +1,6 @@
 use components::{persistent_storage::NvsPartition, wifi::WifiMgr};
 use rainmaker::{
+    claiming::AssistedClaiming,
     error::RMakerError,
     node::{Device, Info, Node, Param},
     wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr},
@@ -72,6 +73,7 @@ fn main() -> Result<(), RMakerError> {
     } else {
         log::info!("Device is not provisioned. Starting provisioning...");
         rmaker.reg_user_mapping_ep(&mut prov_mgr);
+        AssistedClaiming::register_ep(&mut prov_mgr);
         prov_mgr.start()?;
     }
 

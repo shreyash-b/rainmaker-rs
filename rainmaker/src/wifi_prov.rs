@@ -3,6 +3,8 @@ use components::persistent_storage::NvsPartition;
 use components::protocomm::*;
 use components::wifi::*;
 use serde_json::json;
+use serde_json::Map;
+use serde_json::Value;
 use transports::ble::TransportBleConfig;
 
 use crate::error::RMakerError;
@@ -33,9 +35,9 @@ pub struct WifiProvisioningMgr {
     protocomm: Protocomm,
     wifi_client: WrappedInArcMutex<WifiMgr<'static>>,
     device_name: String,
-    version_string: String,
     nvs_partition: NvsPartition,
     scheme: WifiProvScheme,
+    applications: Map<String, Value>,
 }
 
 impl WifiProvisioningMgr {
@@ -44,8 +46,8 @@ impl WifiProvisioningMgr {
         config: WifiProvisioningConfig,
         nvs_partition: NvsPartition,
     ) -> Self {
-        let version_info = Self::get_version_info(&config.security);
         let device_name = format!("PROV_{}", config.device_name.to_uppercase());
+        let prov_app_info = Self::get_prov_application_info(&config.security);
         let protocomm_config = ProtocommConfig {
             transport: match &config.scheme {
                 WifiProvScheme::SoftAP => ProtocomTransportConfig::Httpd(Default::default()),
@@ -58,13 +60,15 @@ impl WifiProvisioningMgr {
         };
 
         let protocomm = Protocomm::new(protocomm_config);
+        let mut applications = Map::new();
+        applications.insert("prov".to_string(), prov_app_info);
 
         Self {
             protocomm,
             wifi_client,
             device_name,
             scheme: config.scheme,
-            version_string: version_info,
+            applications,
             nvs_partition,
         }
     }
@@ -84,7 +88,7 @@ impl WifiProvisioningMgr {
             }
             WifiProvScheme::Ble => {}
         }
-        self.register_listeners(self.version_string.clone());
+        self.register_listeners();
     }
 
     pub fn start(&mut self) -> Result<(), RMakerError> {
@@ -106,6 +110,15 @@ impl WifiProvisioningMgr {
         let pc = &mut self.protocomm;
 
         pc.register_endpoint(endpoint, callback).unwrap();
+    }
+
+    pub fn add_application(&mut self, label: &str, version: &str, capabilities: &[&str]) {
+        let app_info = json!({
+            "ver": version,
+            "cap": capabilities
+        });
+
+        self.applications.insert(label.to_string(), app_info);
     }
 
     pub fn get_provisioned_creds(nvs_partition: NvsPartition) -> Option<(String, String)> {
@@ -149,7 +162,7 @@ impl WifiProvisioningMgr {
         Ok(())
     }
 
-    fn get_version_info(sec_config: &ProtocommSecurity) -> String {
+    fn get_prov_application_info(sec_config: &ProtocommSecurity) -> Value {
         let mut wifi_capabilities = vec![CAP_WIFI_SCAN];
         let sec_ver = match sec_config {
             ProtocommSecurity::Sec0(_) => {
@@ -167,27 +180,25 @@ impl WifiProvisioningMgr {
         };
 
         let ver_info = json!({
-            "prov": {
                 "ver": PROV_MGR_VER,
                 "sec_ver": sec_ver,
                 "cap": wifi_capabilities
-            }
         });
 
-        ver_info.to_string()
+        ver_info
     }
 
-    fn register_listeners(&mut self, version_info: String) {
+    fn register_listeners(&mut self) {
         log::debug!(target: LOGGER_TAH, "adding provisioning listeners");
         let wifi_driv_prov_config = self.wifi_client.clone();
         let wifi_driv_prov_scan = self.wifi_client.clone();
         let nvs_partition = self.nvs_partition.clone();
+        let version_info = serde_json::to_string(&self.applications).unwrap();
 
         let pc = &mut self.protocomm;
         pc.set_security_endpoint("prov-session").unwrap(); // hardcoded sec params for sec0
 
-        pc.set_version_endpoint("proto-ver", version_info.to_string())
-            .unwrap();
+        pc.set_version_endpoint("proto-ver", version_info).unwrap();
 
         pc.register_endpoint(
             "prov-config",
