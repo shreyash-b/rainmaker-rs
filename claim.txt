@@ -1,0 +1,59 @@
+I (20901) esp_claim: Msg: 0
+Received:
+Send: {"mac_addr":"58CF79DAC1E4","platform":"esp32c3"}
+I (22751) esp_rmaker_core: New Node ID ----- VtXfecXiRKazHoBZkkLAHX
+I (23291) esp_claim: Msg: 2
+Received: {"node_id":"VtXfecXiRKazHoBZkkLAHX"}
+Send: {"csr":"-----BEGIN CERTIFICATE REQUEST-----\nMIICZjCCAU4CAQAwITEfMB0GA1UEAwwWVnRYZmVjWGlSS2F6SG9CWmtrTEFIWDCC\nASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOUzi5eZP78AJyip+IHbhEgh\nvsAdzcVKRhqQY7T0iw6OVGQ
+I (23481) esp_claim: Msg: 2
+Received:
+Send: tmUcwC1pmbzwtbzndcyOe/UWUrnIa7J/5ObYactF2\nd2NYPYRLS89JSpQsExqFCQt78QOiJdimbNO22XOOVvjJ8eY2E/JWQ7Q27zwlu62T\nWj7WDE9XeEWWkQtqXX07/V3ojZ5cIvO5GFvGg+NC5IxLPJXNSjFoT37pWHzk/2OL\n/EfpfDOiRjjDpzh+o/wgHhWhX
+I (23681) esp_claim: Msg: 2
+Received:
+Send: 09BSFRJ/k6olxAI45bQC1BXGIDpJup5+cajAuyS\nOMouGB+vgVYlM/Mzj9gigDrqu0X5tSJ1ny4E/blr/NOrTWuYeHG00AGCHyligusC\nAwEAAaAAMA0GCSqGSIb3DQEBCwUAA4IBAQC87ziWLzhoOB3HE1TT4rlTr1sL+7y/\nWIgesW2AuTwo/+uWAYmfT6UHp38
+I (23871) esp_claim: Msg: 2
+Received:
+Send: c8m4kzt1d29VEwot0SKKuh+VXY1tcBX0Lgw+f\n60vYbJmw8EBfQUj7RSv5cPEKod+dsbqC2ZdZ2T/QPr8HSSTvQ2jvMW4P7AAr7sQm\nT3jftJgy+k+eASAOgumQWkznfCJjmXrcDUpkxS+9uSWrlZ9fwO3KTY9A83yjveMD\neOdk9gjgOGR3jzZ8BdVj5DkUy7k7f
+I (24071) esp_claim: Msg: 2
+Received:
+Send: acuOAyjp578CFzqAHy/QT6ffP/XfSH49gkw\nHGX+gN77FSFXLnuhdSxh3oFfpR6/fXa1rYOfUYCdsARz4ELSHmvG/HD5\n-----END CERTIFICATE REQUEST-----","send_mqtt_host":true}
+I (27291) esp_claim: Msg: 4
+Received: {"certificate":"-----BEGIN CERTIFICATE-----\nMIIDRjCCAi6gAwIBAgIQftDcOyJMHr8t+5gvzZ3LEDANBgkqhkiG9w0BAQsFADBV\nMQswCQYDVQQGEwJJTjELMAkGA1UECBMCTUgxDTALBgNVBAcTBFB1bmUxEjAQBgNV\nBAoTCUVzcHJlc3NpZjEWMBQ
+Send:
+I (27481) esp_claim: Msg: 4
+Received: GA1UEAxMNRVNQLVJhaW5NYWtlcjAeFw0yNDEwMDIw\nNTA3MDdaFw0yODEwMDIwNTA3MDdaMCExHzAdBgNVBAMMFlZ0WGZlY1hpUkthekhv\nQlpra0xBSFgwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDlM4uXmT+/\nACcoqfiB24RIIb7AHc3FSkYak
+Send:
+I (27681) esp_claim: Msg: 4
+Received: GO09IsOjlRkLZlHMAtaZm88LW853XMjnv1FlK5y\nGuyf+Tm2GnLRdndjWD2ES0vPSUqULBMahQkLe/EDoiXYpmzTttlzjlb4yfHmNhPy\nVkO0Nu88Jbutk1o+1gxPV3hFlpELal19O/1d6I2eXCLzuRhbxoPjQuSMSzyVzUox\naE9+6Vh85P9ji/xH6XwzokY4w6c
+Send:
+I (27871) esp_claim: Msg: 4
+Received: 4fqP8IB4VoV9PQUhUSf5OqJcQCOOW0AtQVxiA\n6SbqefnGowLskjjKLhgfr4FWJTPzM4/YIoA66rtF+bUidZ8uBP25a/zTq01rmHhx\ntNABgh8pYoLrAgMBAAGjRjBEMA4GA1UdDwEB/wQEAwIHgDATBgNVHSUEDDAKBggr\nBgEFBQcDAjAdBgNVHQ4EFgQU4LOWe
+Send:
+I (28071) esp_claim: Msg: 4
+Received: RnN8OlNWX2X3gFfgxdJwLswDQYJKoZIhvcN\nAQELBQADggEBADti6cIXz2b3FYct4rMgd51j+yHwcwXWxxtlT2BlJPWRZ+XxrY+l\n4pTdB5w1NCWFKXXmDqnK/XojmD/r33bjNnYIiErnLvPq+QcLDvUTS3pnCPKEc2Jq\nOf8bsFnaWfLYrHPQ3Gg6k5AkI4j2T6O
+Send:
+I (28261) esp_claim: Msg: 4
+Received: DlXjaCJlWpxPFYt8zUPBtqll9JLtBuQl8\n6xKYNNew4bVcOF1Utz3KsG7aeSz2Jn/rsDhMLJ3MQGl8mr72/7wzZ4rixNXZO84B\ncSfqbwui8eMGwr2soKonUJZ1NrYafWQmI3XPXvfxZeC3sfHg6/QbPLWPJ9jeupcm\nsb5jrnNuizkniUgRqLbgoYWun5hxRzrnI
+Send:
+I (28461) esp_claim: Msg: 4
+Received: t0=\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nMIIDaDCCAlCgAwIBAgICBnUwDQYJKoZIhvcNAQELBQAwVTELMAkGA1UEBhMCSU4x\nCzAJBgNVBAgTAk1IMQ0wCwYDVQQHEwRQdW5lMRIwEAYDVQQKEwlFc3ByZXNzaWYx\nFjAUBgN
+Send:
+I (28651) esp_claim: Msg: 4
+Received: VBAMTDUVTUC1SYWluTWFrZXIwHhcNMjAwNDI0MTMzNzIxWhcNMzAwNDI0\nMTMzNzIxWjBVMQswCQYDVQQGEwJJTjELMAkGA1UECBMCTUgxDTALBgNVBAcTBFB1\nbmUxEjAQBgNVBAoTCUVzcHJlc3NpZjEWMBQGA1UEAxMNRVNQLVJhaW5NYWtlcjCC\nASIwDQYJK
+Send:
+I (28851) esp_claim: Msg: 4
+Received: oZIhvcNAQEBBQADggEPADCCAQoCggEBAKHTyRirDV1QURE4wjpIWQyW\nVu7Qwjxvu+MkdOmec8gurN9DIPEQJOoa/pyfpuc1BceahjWUPdOxMwknKLc9dYs4\nyx/XkEOxRcY0OvtJg9Y2eAGgkuqKh+Z8DdFyAy2+VX48BaZxW4zf/a7cvGsQpffu\npNddVDJbLbK
+Send:
+I (29041) esp_claim: Msg: 4
+Received: +Io0MT+tzcF9WM5ea4Hny4qBDeXXG6Uru4tnTTf/tnUqmHrVp95QT\nf9dMw+/98mEfpcQd35D9VxPwjTmZupx82AE/vvnu1m3vd1HzN/GEkdmHcvaMsNFh\nV6ucm2JTR9ocY+kBIOou3uTZmrZx6v6svKesDT3+Bmi8ncv2A71swCSjts6gDHMC\nAwEAAaNCMEAwD
+Send:
+I (29241) esp_claim: Msg: 4
+Received: gYDVR0PAQH/BAQDAgKEMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggr\nBgEFBQcDATAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQBnTjaZ\nIzMcL6aetdimuvWOfqrd1/Rvs3+HxFoZhU4utcV4ibg1O8MKaKejHtW3rDi+GLue\nykXDlo8UQdOEifn
+Send:
+I (29431) esp_claim: Msg: 4
+Received: g7WoQrKuRDuaF1dsaF4a80PBy5P4QHA9hensvkWldTZ2UqFrx\nO3sjrB+5chf4CoPEwEZ/ouKsMwFdgpFA3a7XTskwmuXQivXD8PGHXhPjLaRgAyZs\nO4psvoFW6QVXU2MRbNo2tiokQ2eVgW2t1vUdl0kjx5KMJQEdfY7ZmBFb+XL6goMD\nMIyP0BJg/V3WjuGYY
+Send:
+I (29631) esp_claim: Assisted Claiming was Successful.
+I (29631) esp_claim: Msg: 4
+Received: 3aWlkaob3TbBlePQkzAMtZlBtOjQsiwGBafIeOZcm2rN3Xv\nzy4NdNX/isyg/1C4\n-----END CERTIFICATE-----"}
+Send:

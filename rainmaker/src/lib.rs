@@ -2,9 +2,13 @@
 include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 
 pub mod error;
+mod factory;
 pub mod node;
 pub(crate) mod utils;
 pub mod wifi_prov;
+
+#[cfg(target_os = "linux")]
+pub mod claiming;
 
 mod rmaker_mqtt;
 
@@ -23,6 +27,8 @@ use std::{
     time::Duration,
 };
 use wifi_prov::WifiProvisioningMgr;
+
+pub(crate) use factory::rmaker_factory;
 
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
@@ -110,9 +116,12 @@ where
 
     pub fn reg_user_mapping_ep(&self, prov_msg: &mut WifiProvisioningMgr) {
         let node_id = self.get_node_id();
-        prov_msg.add_endpoint("cloud_user_assoc", Box::new(move |ep, data| -> Vec<u8> {
-            cloud_user_assoc_callback(ep, data, node_id.to_owned())
-        }))
+        prov_msg.add_endpoint(
+            "cloud_user_assoc",
+            Box::new(move |ep, data| -> Vec<u8> {
+                cloud_user_assoc_callback(ep, data, node_id.to_owned())
+            }),
+        )
     }
 
     #[cfg(target_os = "linux")]
