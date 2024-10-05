@@ -5,18 +5,18 @@ use std::sync::Arc;
 
 use super::ProtocommCallbackType;
 
-pub(crate) struct TransportHttpd<'a> {
-    http_server: HttpServer<'a>,
+pub(crate) struct TransportHttpd {
+    http_server: HttpServer,
 }
 
-impl<'a> TransportHttpd<'a> {
+impl TransportHttpd {
     pub fn new(config: HttpConfiguration) -> Self {
         let http_server = HttpServer::new(config).unwrap();
         Self { http_server }
     }
 }
 
-impl<'a> TransportTrait for TransportHttpd<'a> {
+impl TransportTrait for TransportHttpd {
     fn add_endpoint(
         &mut self,
         ep_name: &str,

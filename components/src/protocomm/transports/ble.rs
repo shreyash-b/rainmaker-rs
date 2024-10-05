@@ -1,4 +1,4 @@
-use std::{cell::Cell, marker::PhantomData};
+use std::cell::Cell;
 
 use uuid::Uuid;
 
@@ -20,17 +20,16 @@ pub struct TransportBleConfig {
 }
 
 #[derive(Default)]
-pub(crate) struct TransportBle<'a> {
+pub(crate) struct TransportBle {
     adv_handle: Option<AdvertisementHandle>,
     app_handle: Option<ApplicationHandle>,
     characteristics: Cell<Vec<Characteristic>>,
     count: u16,
     device_name: String,
     service_uuid: Uuid,
-    phantom_data: PhantomData<&'a ()>,
 }
 
-impl TransportBle<'_> {
+impl TransportBle {
     pub fn new(config: TransportBleConfig) -> Self {
         Self {
             device_name: config.device_name,
@@ -40,7 +39,7 @@ impl TransportBle<'_> {
     }
 }
 
-impl TransportTrait for TransportBle<'_> {
+impl TransportTrait for TransportBle {
     fn add_endpoint(
         &mut self,
         ep_name: &str,

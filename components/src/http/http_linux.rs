@@ -3,10 +3,8 @@
 static LOGGER_TARGET: &str = "http_server";
 
 use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::net::SocketAddr;
-use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
+use std::{net::SocketAddr, sync::mpsc};
 
 use log::error;
 
@@ -44,16 +42,15 @@ pub trait HttpEndpointCallback<'a> = Fn(HttpRequest) -> HttpResponse + Send + Sy
 // however tiny_http is a blocking server
 // we linux http server with idf by creating a hashmap mutex and spawning tiny_http in a separate thread
 type HttpCallbackMethodMapping<'a> = HashMap<HttpMethod, Box<dyn HttpEndpointCallback<'static>>>;
-pub struct HttpServerLinux<'a> {
+pub struct HttpServerLinux {
     // inner hashmap to store mapping of endpoint method with callback
     // outer hashmap to store mapping to endpoint url with inner hashmap
     callbacks: WrappedInArcMutex<HashMap<String, HttpCallbackMethodMapping<'static>>>,
     execution_thread_handle: Option<JoinHandle<()>>,
     executor_channel: mpsc::Sender<()>,
-    phantom_data: PhantomData<&'a ()>,
 }
 
-impl HttpServer<HttpServerLinux<'_>> {
+impl HttpServer<HttpServerLinux> {
     pub fn new(config: HttpConfiguration) -> Result<Self, Error> {
         let callbacks: HashMap<String, HttpCallbackMethodMapping<'static>> = HashMap::new();
         let callbacks_mutex = wrap_in_arc_mutex(callbacks);
@@ -104,7 +101,6 @@ impl HttpServer<HttpServerLinux<'_>> {
             callbacks: callbacks_mutex,
             execution_thread_handle: Some(executor_joinhandle),
             executor_channel: sender,
-            phantom_data: PhantomData,
         }))
     }
 
@@ -129,7 +125,7 @@ impl HttpServer<HttpServerLinux<'_>> {
     }
 }
 
-impl Drop for HttpServerLinux<'_> {
+impl Drop for HttpServerLinux {
     fn drop(&mut self) {
         // send a message to stop the server from listening
         self.executor_channel.send(()).unwrap();
