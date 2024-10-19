@@ -4,13 +4,13 @@ pub mod error;
 pub mod node;
 pub(crate) mod proto;
 pub(crate) mod utils;
-pub mod wifi_prov;
 
 mod rmaker_mqtt;
 
 use components::{
     mqtt::ReceivedMessage,
     persistent_storage::{Nvs, NvsPartition},
+    wifi_prov::{WiFiProvTransportTrait, WifiProvMgr},
 };
 use error::RMakerError;
 use node::Node;
@@ -23,7 +23,6 @@ use std::{
     thread,
     time::Duration,
 };
-use wifi_prov::WifiProvisioningMgr;
 
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
@@ -104,8 +103,6 @@ where
             None => panic!("error while starting: node not registered"),
         }
 
-        // #[cfg(target_os="espidf")]
-
         Ok(())
     }
 
@@ -113,11 +110,12 @@ where
         self.node = Some(node.into());
     }
 
-    pub fn reg_user_mapping_ep(&self, prov_msg: &mut WifiProvisioningMgr) {
+    pub fn reg_user_mapping_ep<T: WiFiProvTransportTrait>(&self, prov_mgr: &mut WifiProvMgr<T>) {
         let node_id = self.get_node_id();
-        prov_msg.add_endpoint("cloud_user_assoc", Box::new(move |ep, data| -> Vec<u8> {
-            cloud_user_assoc_callback(ep, data, node_id.to_owned())
-        }))
+        prov_mgr.add_endpoint(
+            "cloud_user_assoc",
+            Box::new(move |ep, data| -> Vec<u8> { cloud_user_assoc_callback(ep, data, &node_id) }),
+        )
     }
 
     #[cfg(target_os = "linux")]
@@ -179,8 +177,8 @@ fn remote_params_callback(msg: ReceivedMessage, node: Arc<Node<'_>>) {
     }
 }
 
-fn cloud_user_assoc_callback(_ep: &str, data: Vec<u8>, node_id: String) -> Vec<u8> {
-    let req_proto = RMakerConfigPayload::try_from(&*data).unwrap();
+fn cloud_user_assoc_callback(_ep: &str, data: &[u8], node_id: &str) -> Vec<u8> {
+    let req_proto = RMakerConfigPayload::try_from(data).unwrap();
     let req_payload = req_proto.payload;
 
     let (user_id, secret_key) = match req_payload {
@@ -214,10 +212,10 @@ fn cloud_user_assoc_callback(_ep: &str, data: Vec<u8>, node_id: String) -> Vec<u
     }
 
     let res_proto = RMakerConfigPayload {
-        msg: RMakerConfigMsgType::TypeRespSetUserMapping.into(),
+        msg: RMakerConfigMsgType::TypeRespSetUserMapping,
         payload: mod_RMakerConfigPayload::OneOfpayload::resp_set_user_mapping(RespSetUserMapping {
             Status: RMakerConfigStatus::Success,
-            NodeId: node_id,
+            NodeId: node_id.to_string(),
         }),
     };
 

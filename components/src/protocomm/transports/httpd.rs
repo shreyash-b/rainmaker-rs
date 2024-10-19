@@ -1,23 +1,22 @@
 use crate::http::{HttpConfiguration, HttpMethod, HttpRequest, HttpResponse, HttpServer};
-use crate::protocomm::transports::TransportTrait;
-use crate::protocomm::{protocomm_req_handler, EndpointType, ProtocommSecurity};
+use crate::protocomm::{
+    protocomm_req_handler, EndpointType, ProtocommCallbackType, ProtocommSecurity,
+};
 use std::sync::Arc;
-
-use super::ProtocommCallbackType;
 
 pub(crate) struct TransportHttpd {
     http_server: HttpServer,
 }
 
 impl TransportHttpd {
-    pub fn new(config: HttpConfiguration) -> Self {
+    pub(crate) fn new(config: HttpConfiguration) -> Self {
         let http_server = HttpServer::new(config).unwrap();
         Self { http_server }
     }
 }
 
-impl TransportTrait for TransportHttpd {
-    fn add_endpoint(
+impl TransportHttpd {
+    pub(crate) fn add_endpoint(
         &mut self,
         ep_name: &str,
         cb: ProtocommCallbackType,
@@ -32,9 +31,6 @@ impl TransportTrait for TransportHttpd {
             Box::new(move |req| -> HttpResponse { http_callback(req, &cb, &ep_type, &sec) }),
         );
     }
-
-    // Do nothing since HTTP Server starts when initialized
-    fn start(&mut self) {}
 }
 
 fn http_callback(
@@ -47,7 +43,7 @@ fn http_callback(
     let data = req.data();
     let ep = url.split_at(1).1;
 
-    let data_ret = protocomm_req_handler(ep, data, cb, ep_type, sec);
+    let data_ret = protocomm_req_handler(ep, &data, cb, ep_type, sec);
 
     HttpResponse::from_bytes(data_ret)
 }

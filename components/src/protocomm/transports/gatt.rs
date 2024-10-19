@@ -3,45 +3,31 @@ use std::cell::Cell;
 use uuid::Uuid;
 
 use crate::{
-    ble::{
-        Advertisement, AdvertisementHandle, ApplicationHandle, Characteristic, Descriptor,
-        GattApplication, Service,
-    },
+    ble::{ApplicationHandle, Characteristic, Descriptor, GattApplication, Service},
     protocomm::{protocomm_req_handler, ProtocommCallbackType},
     utils::wrap_in_arc_mutex,
 };
 
-use super::TransportTrait;
+const USER_CHARACTERISTIC_DESCRIPTOR: u128 = 0x290100001000800000805f9b34fb;
 
 #[derive(Default)]
-pub struct TransportBleConfig {
-    pub device_name: String,
-    pub service_uuid: Uuid,
-}
-
-#[derive(Default)]
-pub(crate) struct TransportBle {
-    adv_handle: Option<AdvertisementHandle>,
+pub(crate) struct TransportGatt {
     app_handle: Option<ApplicationHandle>,
     characteristics: Cell<Vec<Characteristic>>,
-    count: u16,
-    device_name: String,
     service_uuid: Uuid,
 }
 
-impl TransportBle {
-    pub fn new(config: TransportBleConfig) -> Self {
+impl TransportGatt {
+    pub(crate) fn new(service_uuid: Uuid) -> Self {
         Self {
-            device_name: config.device_name,
-            service_uuid: config.service_uuid,
+            service_uuid,
             ..Default::default()
         }
     }
-}
 
-impl TransportTrait for TransportBle {
-    fn add_endpoint(
+    pub(crate) fn add_endpoint(
         &mut self,
+        uuid: Uuid,
         ep_name: &str,
         cb: ProtocommCallbackType,
         ep_type: crate::protocomm::EndpointType,
@@ -52,34 +38,26 @@ impl TransportTrait for TransportBle {
         let value_mutex = wrap_in_arc_mutex(vec![]);
         let value_mutex_2 = value_mutex.clone();
         let new_characteristic = Characteristic {
-            uuid: Uuid::from_u128((0x1212 + self.count) as u128),
+            uuid,
             read: Some(Box::new(move || {
                 let val = value_mutex.lock().unwrap();
-                protocomm_req_handler(&ep_name, val.to_vec(), &cb, &ep_type, &sec)
+                protocomm_req_handler(&ep_name, &val, &cb, &ep_type, &sec)
             })),
             write: Some(Box::new(move |data| {
                 let mut val = value_mutex_2.lock().unwrap();
                 *val = data;
             })),
             descriptors: vec![Descriptor {
-                uuid: Uuid::from_u128(0x290100001000800000805f9b34fb), // User Description Characteristic
+                uuid: Uuid::from_u128(USER_CHARACTERISTIC_DESCRIPTOR),
                 value: ep_name_2.into(),
             }],
         };
 
         let chrs = self.characteristics.get_mut();
         chrs.push(new_characteristic);
-        self.count += 1;
     }
 
-    fn start(&mut self) {
-        let adv = Advertisement {
-            device_name: Some(self.device_name.clone()),
-            discoverable: true,
-            primary_service: self.service_uuid,
-            service_uuids: vec![self.service_uuid],
-        };
-
+    pub(crate) fn start(&mut self) {
         let app = GattApplication {
             services: vec![Service {
                 uuid: self.service_uuid,
@@ -89,6 +67,5 @@ impl TransportTrait for TransportBle {
         };
 
         self.app_handle = Some(app.serve().unwrap());
-        self.adv_handle = Some(adv.advertise().unwrap())
     }
 }

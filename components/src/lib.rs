@@ -8,6 +8,7 @@ pub mod mqtt;
 pub mod persistent_storage;
 pub mod protocomm;
 pub mod wifi;
+pub mod wifi_prov;
 
 pub(crate) mod proto;
 pub(crate) mod utils;

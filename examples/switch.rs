@@ -1,15 +1,17 @@
-use components::{persistent_storage::NvsPartition, wifi::WifiMgr};
+use components::{
+    persistent_storage::NvsPartition,
+    wifi::{WifiClientConfig, WifiMgr},
+    wifi_prov::{WiFiProvMgrBle, WifiProvBleConfig},
+};
 use rainmaker::{
     error::RMakerError,
     node::{Device, Info, Node, Param},
-    wifi_prov::{WifiProvisioningConfig, WifiProvisioningMgr},
     Rainmaker,
 };
 use serde_json::Value;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 fn initializse_logger() {
@@ -56,29 +58,37 @@ fn main() -> Result<(), RMakerError> {
     let wifi_arc_mutex = Arc::new(Mutex::new(WifiMgr::new()?));
     let nvs_partition = NvsPartition::new("nvs")?;
 
-    let provisioning_config = WifiProvisioningConfig {
-        device_name: "Switch".to_string(),
+    let prov_config = WifiProvBleConfig {
+        service_name: String::from("PROV_SERVICE"),
         ..Default::default()
     };
-    let mut prov_mgr = WifiProvisioningMgr::new(
+    let mut prov_mgr = WiFiProvMgrBle::new(
         wifi_arc_mutex.clone(),
-        provisioning_config,
-        nvs_partition.clone(),
-    );
+        prov_config,
+        nvs_partition,
+        components::protocomm::ProtocommSecurity::new_sec1(None),
+    )?;
 
-    if WifiProvisioningMgr::get_provisioned_creds(nvs_partition.clone()).is_some() {
-        log::info!("Device is already provisioned");
-        prov_mgr.connect()?;
+    if let Some((ssid, password)) = prov_mgr.is_provisioned() {
+        log::info!("Node already provisioned. Trying to connect");
+        let mut wifi = wifi_arc_mutex.lock().unwrap();
+        let config = WifiClientConfig {
+            ssid,
+            password,
+            ..Default::default()
+        };
+        wifi.set_client_config(config)?;
+        wifi.start()?;
+        wifi.assured_connect();
+        drop(prov_mgr);
     } else {
-        log::info!("Device is not provisioned. Starting provisioning...");
+        log::info!("Node not provisioned. Starting WiFi provisioning.");
         rmaker.reg_user_mapping_ep(&mut prov_mgr);
         prov_mgr.start()?;
+        prov_mgr.wait_for_provisioning();
     }
 
-    while !wifi_arc_mutex.lock().unwrap().is_connected() {
-        // wait for wifi to connect before starting rainmaker
-        std::thread::sleep(Duration::from_secs(1));
-    }
+    log::info!("WiFi connected successfully");
 
     node.add_device(switch_device);
 

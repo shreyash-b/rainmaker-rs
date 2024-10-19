@@ -1,31 +1,25 @@
 mod security;
-pub mod transports;
+mod transports;
 
 use std::sync::Arc;
-use transports::ble::{TransportBle, TransportBleConfig};
-use transports::httpd::TransportHttpd;
-
-use transports::TransportTrait;
-
-use crate::error::Error;
-use crate::http::HttpConfiguration;
+use transports::{TransportGatt, TransportHttpd};
+use uuid::Uuid;
 
 pub use self::security::ProtocommSecurity;
 use self::security::SecurityTrait;
+use crate::http;
 
-const LOGGER_TAG: &str = "protocomm";
+#[allow(private_interfaces)]
+pub type ProtocommHttpd = Protocomm<TransportHttpd>;
+#[allow(private_interfaces)]
+pub type ProtocommGatt = Protocomm<TransportGatt>;
 
-pub type ProtocommCallbackType = Box<dyn Fn(&str, Vec<u8>) -> Vec<u8> + Send + Sync + 'static>;
-
-pub enum ProtocomTransportConfig {
-    Httpd(HttpConfiguration),
-    Ble(TransportBleConfig),
+#[derive(Default)]
+pub struct ProtocommGattConfig {
+    pub service_uuid: Uuid,
 }
 
-pub struct ProtocommConfig {
-    pub security: ProtocommSecurity,
-    pub transport: ProtocomTransportConfig,
-}
+pub type ProtocommHttpdConfig = http::HttpConfiguration;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EndpointType {
@@ -35,87 +29,117 @@ pub(crate) enum EndpointType {
     Other,
 }
 
-pub struct Protocomm {
-    transport: Box<dyn TransportTrait>, // change this to accepting trait after implementing BLE transport
+pub type ProtocommCallbackType = Box<dyn Fn(&str, &[u8]) -> Vec<u8> + Send + Sync + 'static>;
+
+pub struct Protocomm<T> {
+    transport: T,
     sec: Arc<ProtocommSecurity>,
 }
 
-impl Protocomm {
-    pub fn new(config: ProtocommConfig) -> Self {
-        let transport: Box<dyn TransportTrait> = match config.transport {
-            ProtocomTransportConfig::Httpd(config) => Box::new(TransportHttpd::new(config)),
-            ProtocomTransportConfig::Ble(config) => Box::new(TransportBle::new(config)),
-        };
+impl Protocomm<TransportGatt> {
+    pub fn new(gatt_config: ProtocommGattConfig, security: ProtocommSecurity) -> Self {
+        let transport_ble = transports::TransportGatt::new(gatt_config.service_uuid);
 
         Self {
-            transport,
-            sec: Arc::new(config.security),
+            transport: transport_ble,
+            sec: Arc::new(security),
         }
     }
 
-    pub fn start(&mut self) {
-        log::info!("Starting Protocomm");
-        self.transport.start();
+    pub fn set_version_info(&mut self, uuid: Uuid, ep_name: &str, version_info: String) {
+        self.transport.add_endpoint(
+            uuid,
+            ep_name,
+            Box::new(move |_ep, _data| version_info.as_bytes().to_vec()),
+            EndpointType::Version,
+            self.sec.clone(),
+        );
+    }
+
+    pub fn set_security_endpoint(&mut self, uuid: Uuid, ep_name: &str) {
+        self.transport.add_endpoint(
+            uuid,
+            ep_name,
+            Box::new(|_, _| Vec::default()),
+            EndpointType::Security,
+            self.sec.clone(),
+        );
     }
 
     pub fn register_endpoint(
         &mut self,
+        uuid: Uuid,
         ep_name: &str,
         callback: ProtocommCallbackType,
-    ) -> Result<(), Error> {
-        self.register_endpoint_internal(ep_name, callback, EndpointType::Other)
+    ) {
+        log::debug!("Registering endpoint: {}", ep_name);
+        self.transport.add_endpoint(
+            uuid,
+            ep_name,
+            callback,
+            EndpointType::Other,
+            self.sec.clone(),
+        );
+        log::debug!("Registered endpoint: {}", ep_name);
     }
 
-    pub fn set_security_endpoint(&mut self, ep_name: &str) -> Result<(), Error> {
-        // supply dummy callback here, appropriate callback is called
-        self.register_endpoint_internal(
-            ep_name,
-            Box::new(|_ep, _data| vec![]),
-            EndpointType::Security,
-        )
+    pub fn start(&mut self) {
+        self.transport.start();
+    }
+}
+
+impl Protocomm<TransportHttpd> {
+    pub fn new(config: ProtocommHttpdConfig, security: ProtocommSecurity) -> Self {
+        let transport = TransportHttpd::new(config);
+        Self {
+            transport,
+            sec: Arc::new(security),
+        }
     }
 
-    pub fn set_version_endpoint(
-        &mut self,
-        ep_name: &str,
-        version_str: String,
-    ) -> Result<(), Error> {
+    pub fn set_version_info(&mut self, ep_name: &str, version_info: String) {
         self.register_endpoint_internal(
             ep_name,
-            Box::new(move |_ep, _data| version_str.to_owned().into()),
+            Box::new(move |_ep, _data| version_info.as_bytes().to_vec()),
             EndpointType::Version,
-        )
+        );
+    }
+
+    pub fn set_security_endpoint(&mut self, ep_name: &str) {
+        self.register_endpoint_internal(ep_name, Box::new(|_, _| vec![]), EndpointType::Security);
+    }
+
+    pub fn register_endpoint(&mut self, ep_name: &str, callback: ProtocommCallbackType) {
+        self.register_endpoint_internal(ep_name, callback, EndpointType::Other);
     }
 
     fn register_endpoint_internal(
         &mut self,
         ep_name: &str,
-        callback: ProtocommCallbackType,
+        cb: ProtocommCallbackType,
         ep_type: EndpointType,
-    ) -> Result<(), Error> {
-        self.transport
-            .add_endpoint(ep_name, callback, ep_type, self.sec.clone());
-        log::debug!(target: LOGGER_TAG, "registered handler for {ep_name}");
-
-        Ok(())
+    ) {
+        let sec = self.sec.clone();
+        self.transport.add_endpoint(ep_name, cb, ep_type, sec);
     }
 }
 
 pub(crate) fn protocomm_req_handler(
     ep: &str,
-    data: Vec<u8>,
+    data: &[u8],
     cb: &ProtocommCallbackType,
     ep_type: &EndpointType,
     sec: &Arc<ProtocommSecurity>,
 ) -> Vec<u8> {
     match ep_type {
         EndpointType::Version => cb(ep, data),
-        EndpointType::Security => sec.security_handler(ep, data),
+        EndpointType::Security => sec.security_handler(ep, data.to_vec()),
         EndpointType::Other => {
-            let mut data_mut = data.clone();
+            // for decrypting
+            let mut data = data.to_vec();
 
-            sec.decrypt(&mut data_mut);
-            let mut res = cb(ep, data_mut);
+            sec.decrypt(&mut data);
+            let mut res = cb(ep, &data);
             sec.encrypt(&mut res);
 
             res
