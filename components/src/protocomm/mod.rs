@@ -1,15 +1,14 @@
-mod proto;
 mod security;
 pub mod transports;
 
-use crate::{error::Error, http::HttpConfiguration};
-pub use prost::Message;
-pub use proto::*;
 use std::sync::Arc;
 use transports::ble::{TransportBle, TransportBleConfig};
 use transports::httpd::TransportHttpd;
 
 use transports::TransportTrait;
+
+use crate::error::Error;
+use crate::http::HttpConfiguration;
 
 pub use self::security::ProtocommSecurity;
 use self::security::SecurityTrait;

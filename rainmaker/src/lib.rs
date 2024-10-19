@@ -1,8 +1,8 @@
 #![feature(trait_alias)]
-include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 
 pub mod error;
 pub mod node;
+pub(crate) mod proto;
 pub(crate) mod utils;
 pub mod wifi_prov;
 
@@ -14,7 +14,8 @@ use components::{
 };
 use error::RMakerError;
 use node::Node;
-use prost::Message;
+use proto::esp_rmaker_user_mapping::*;
+use quick_protobuf::{MessageWrite, Writer};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -172,11 +173,11 @@ fn remote_params_callback(msg: ReceivedMessage, node: Arc<Node<'_>>) {
 }
 
 fn cloud_user_assoc_callback(_ep: &str, data: Vec<u8>, node_id: String) -> Vec<u8> {
-    let req_proto = RMakerConfigPayload::decode(&*data).unwrap();
-    let req_payload = req_proto.payload.unwrap();
+    let req_proto = RMakerConfigPayload::try_from(&*data).unwrap();
+    let req_payload = req_proto.payload;
 
     let (user_id, secret_key) = match req_payload {
-        r_maker_config_payload::Payload::CmdSetUserMapping(p) => (p.user_id, p.secret_key),
+        mod_RMakerConfigPayload::OneOfpayload::cmd_set_user_mapping(p) => (p.UserID, p.SecretKey),
         _ => unreachable!(),
     };
 
@@ -207,15 +208,18 @@ fn cloud_user_assoc_callback(_ep: &str, data: Vec<u8>, node_id: String) -> Vec<u
 
     let res_proto = RMakerConfigPayload {
         msg: RMakerConfigMsgType::TypeRespSetUserMapping.into(),
-        payload: Some(r_maker_config_payload::Payload::RespSetUserMapping(
-            RespSetUserMapping {
-                status: RMakerConfigStatus::Success.into(),
-                node_id,
-            },
-        )),
+        payload: mod_RMakerConfigPayload::OneOfpayload::resp_set_user_mapping(RespSetUserMapping {
+            Status: RMakerConfigStatus::Success,
+            NodeId: node_id,
+        }),
     };
 
-    res_proto.encode_to_vec()
+    let mut out_vec = vec![];
+    let mut writer = Writer::new(&mut out_vec);
+
+    res_proto.write_message(&mut writer).unwrap();
+
+    out_vec
 }
 
 pub fn prevent_drop() {

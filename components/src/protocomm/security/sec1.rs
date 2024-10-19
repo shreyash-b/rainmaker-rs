@@ -1,12 +1,8 @@
 use std::sync::Mutex;
 
-use crate::protocomm::{
-    sec1_payload, session_data, Sec1MsgType, Sec1Payload, SecSchemeVersion, SessionCmd0,
-    SessionCmd1, SessionData, SessionResp0, SessionResp1, Status,
-};
 use ed25519_compact::x25519::{KeyPair, PublicKey};
-use prost::Message;
 
+use quick_protobuf::{MessageWrite, Writer};
 use sha2::{Digest, Sha256};
 
 use aes::{
@@ -15,6 +11,14 @@ use aes::{
 };
 use ctr::Ctr128BE;
 use rand::RngCore;
+
+use crate::proto::{
+    constants::Status,
+    session::{
+        sec1::*,
+        session::{mod_SessionData, SecSchemeVersion, SessionData},
+    },
+};
 
 use super::SecurityTrait;
 
@@ -79,7 +83,7 @@ impl Sec1 {
         let cipher = AesCtr::new(shared_secret.as_ref().into(), device_random.as_ref().into());
 
         let out_data = SessionResp0 {
-            status: Status::Success.into(),
+            status: Status::Success,
             device_pubkey: device_ecdh_keypair.pk.as_ref().to_vec(),
             device_random: device_random.to_vec(),
         };
@@ -118,7 +122,7 @@ impl Sec1 {
         debug_u8_arr_as_hex("sending device verifier", &client_pubkey);
 
         SessionResp1 {
-            status: Status::Success.into(),
+            status: Status::Success,
             device_verify_data: client_pubkey,
         }
     }
@@ -126,31 +130,34 @@ impl Sec1 {
 
 impl SecurityTrait for Sec1 {
     fn security_handler(&self, _ep: &str, data: Vec<u8>) -> Vec<u8> {
-        let proto_decode = SessionData::decode(data.as_ref());
+        let proto_decode = SessionData::try_from(data.as_slice());
 
         let in_proto = match proto_decode {
             Ok(d) => d,
             Err(_) => {
                 // decoding falied
+                log::error!("Failed to decode Sec1 payload");
                 return vec![];
             }
         };
 
-        if in_proto.sec_ver != i32::from(SecSchemeVersion::SecScheme1) {
+        if in_proto.sec_ver != SecSchemeVersion::SecScheme1 {
             // incorrect secver
             return vec![];
         }
 
         let mut out_data = Sec1Payload::default();
-        match in_proto.proto.unwrap() {
-            session_data::Proto::Sec1(data) => match data.payload.unwrap() {
-                sec1_payload::Payload::Sc0(payload) => {
-                    out_data.msg = Sec1MsgType::SessionResponse0.into();
-                    out_data.payload = Some(sec1_payload::Payload::Sr0(self.handle_cmd0(payload)));
+        match in_proto.proto {
+            mod_SessionData::OneOfproto::sec1(data) => match data.payload {
+                mod_Sec1Payload::OneOfpayload::sc0(payload) => {
+                    out_data.msg = Sec1MsgType::Session_Response0;
+                    out_data.payload =
+                        mod_Sec1Payload::OneOfpayload::sr0(self.handle_cmd0(payload));
                 }
-                sec1_payload::Payload::Sc1(payload) => {
-                    out_data.msg = Sec1MsgType::SessionResponse1.into();
-                    out_data.payload = Some(sec1_payload::Payload::Sr1(self.handle_cmd1(payload)));
+                mod_Sec1Payload::OneOfpayload::sc1(payload) => {
+                    out_data.msg = Sec1MsgType::Session_Response1;
+                    out_data.payload =
+                        mod_Sec1Payload::OneOfpayload::sr1(self.handle_cmd1(payload));
                 }
                 _ => unreachable!(),
             },
@@ -158,11 +165,16 @@ impl SecurityTrait for Sec1 {
         };
 
         let out_proto = SessionData {
-            sec_ver: SecSchemeVersion::SecScheme1.into(),
-            proto: Some(session_data::Proto::Sec1(out_data)),
+            sec_ver: SecSchemeVersion::SecScheme1,
+            proto: mod_SessionData::OneOfproto::sec1(out_data),
         };
 
-        out_proto.encode_to_vec()
+        let mut out_vec = vec![];
+        let mut writer = Writer::new(&mut out_vec);
+
+        out_proto.write_message(&mut writer).unwrap();
+
+        out_vec
     }
 
     fn encrypt(&self, input: &mut [u8]) {
