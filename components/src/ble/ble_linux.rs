@@ -19,7 +19,7 @@ static BLUER_SESSION: LazyLock<bluer::Session> =
 static ADAPTER: LazyLock<bluer::Adapter> = LazyLock::new(|| {
     RUNTIME
         .block_on(BLUER_SESSION.default_adapter())
-        .expect("Unable to initialize BLE: Adapter not found")
+        .expect("Unable to initialize BLE: Is Bluetooth powered on?")
 });
 
 /* Advertising and serving can only be done at one place at a time */
