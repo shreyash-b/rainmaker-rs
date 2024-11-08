@@ -5,7 +5,7 @@ use components::{
 };
 use rainmaker::{
     error::RMakerError,
-    node::{Device, Info, Node, Param},
+    node::{Device, Node, Param},
     Rainmaker,
 };
 use serde_json::Value;
@@ -45,13 +45,8 @@ fn switch_cb(params: HashMap<String, Value>) {
 fn main() -> Result<(), RMakerError> {
     initializse_logger();
 
-    let mut rmaker = Rainmaker::new()?;
-    let mut node = Node::new(
-        rmaker.get_node_id(),
-        "2019-02-27".to_string(),
-        Info {},
-        vec![],
-    );
+    let rmaker = Rainmaker::init()?;
+    let mut node = Node::new(rmaker.get_node_id());
     let mut switch_device = create_switch_device("Switch");
     switch_device.register_callback(Box::new(switch_cb));
 
@@ -97,7 +92,9 @@ fn main() -> Result<(), RMakerError> {
 
     log::info!("Rainmaker agent is started");
 
-    rainmaker::prevent_drop();
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+    }
 
     Ok(())
 }

@@ -5,13 +5,14 @@ pub mod node;
 pub(crate) mod proto;
 pub(crate) mod utils;
 
+mod constants;
 mod rmaker_mqtt;
-
 use components::{
     mqtt::ReceivedMessage,
     persistent_storage::{Nvs, NvsPartition},
     wifi_prov::{WiFiProvTransportTrait, WifiProvMgr},
 };
+use constants::*;
 use error::RMakerError;
 use node::Node;
 use proto::esp_rmaker_user_mapping::*;
@@ -19,7 +20,7 @@ use quick_protobuf::{MessageWrite, Writer};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, LazyLock, Mutex, OnceLock},
     thread,
     time::Duration,
 };
@@ -40,30 +41,29 @@ static NODEID: LazyLock<String> = LazyLock::new(|| {
     String::from_utf8(bytes).unwrap()
 });
 
-#[allow(dead_code)]
-pub struct Rainmaker<'a> {
-    node_id: String,
-    node: Option<Arc<node::Node<'a>>>,
+#[derive(Debug)]
+pub struct Rainmaker {
+    node: Option<Arc<node::Node>>,
 }
 
-unsafe impl Send for Rainmaker<'_> {}
+static mut RAINMAKER: OnceLock<Rainmaker> = OnceLock::new();
 
-impl<'a> Rainmaker<'a>
-where
-    'a: 'static,
-{
-    pub fn new() -> Result<Self, RMakerError> {
+impl Rainmaker {
+    pub fn init() -> Result<&'static mut Self, RMakerError> {
         #[cfg(target_os = "linux")]
-        Rainmaker::linux_init_claimdata();
+        Self::linux_init_claimdata();
 
-        Ok(Self {
-            node_id: NODEID.clone(),
-            node: None,
-        })
+        if unsafe { RAINMAKER.get().is_some() } {
+            return Err(RMakerError("Rainmaker already initialized".to_string()));
+        }
+        unsafe {
+            RAINMAKER.set(Self { node: None }).unwrap();
+        }
+        Ok(unsafe { RAINMAKER.get_mut().unwrap() })
     }
 
     pub fn get_node_id(&self) -> String {
-        self.node_id.clone()
+        NODEID.to_string()
     }
 
     pub fn start(&mut self) -> Result<(), RMakerError> {
@@ -73,10 +73,11 @@ where
         }
 
         let curr_node = &self.node;
-        let node_id = self.node_id.clone();
-        let node_config_topic = format!("node/{}/config", node_id);
-        let params_local_init_topic = format!("node/{}/params/local/init", node_id);
-        let remote_param_topic = format!("node/{}/params/remote", node_id);
+        let node_id = NODEID.to_string();
+        let node_config_topic = format!("node/{}/{}", node_id, NODE_CONFIG_TOPIC_SUFFIX);
+        let params_local_init_topic =
+            format!("node/{}/{}", node_id, NODE_PARAMS_LOCAL_INIT_TOPIC_SUFFIX);
+        let remote_param_topic = format!("node/{}/{}", node_id, NODE_PARAMS_REMOTE_TOPIC_SUFFIX);
 
         match curr_node {
             Some(node) => {
@@ -89,12 +90,6 @@ where
                 log::info!("publishing initial params: {}", init_params);
                 rmaker_mqtt::publish(&params_local_init_topic, init_params.into())?;
                 let node = node.clone();
-                // while mqtt.subscribe(remote_param_topic.as_str(), &mqtt::QoSLevel::AtLeastOnce).is_err() {
-                //     log::error!("Unable to subscribe. Trying again in 10 seconds");
-                //     std::thread::sleep(std::time::Duration::from_secs(10));
-                // }
-
-                // temporary workaround
                 thread::sleep(Duration::from_secs(1)); // wait for connection
                 rmaker_mqtt::subscribe(&remote_param_topic, move |msg| {
                     remote_params_callback(msg, node.to_owned())
@@ -106,7 +101,7 @@ where
         Ok(())
     }
 
-    pub fn register_node(&mut self, node: node::Node<'a>) {
+    pub fn register_node(&mut self, node: Node) {
         self.node = Some(node.into());
     }
 
@@ -167,7 +162,7 @@ where
     }
 }
 
-fn remote_params_callback(msg: ReceivedMessage, node: Arc<Node<'_>>) {
+fn remote_params_callback(msg: ReceivedMessage, node: Arc<Node>) {
     let received_val: HashMap<String, HashMap<String, Value>> =
         serde_json::from_str(&String::from_utf8(msg.payload).unwrap()).unwrap();
     let devices = received_val.keys();
@@ -195,7 +190,7 @@ fn cloud_user_assoc_callback(_ep: &str, data: &[u8], node_id: &str) -> Vec<u8> {
         "reset": true
     });
 
-    let user_mapping_topic = format!("node/{}/user/mapping", node_id);
+    let user_mapping_topic = format!("node/{}/{}", node_id, USER_MAPPING_TOPIC_SUFFIX);
 
     if !rmaker_mqtt::is_mqtt_initialized() && rmaker_mqtt::init_rmaker_mqtt().is_err() {
         // cannot publish user mapping payload
@@ -225,14 +220,6 @@ fn cloud_user_assoc_callback(_ep: &str, data: &[u8], node_id: &str) -> Vec<u8> {
     res_proto.write_message(&mut writer).unwrap();
 
     out_vec
-}
-
-pub fn prevent_drop() {
-    // eat 5-star, do nothing
-    // to avoid variables from dropping
-    loop {
-        std::thread::sleep(std::time::Duration::from_secs(5));
-    }
 }
 
 pub fn report_params(device_name: &str, params: HashMap<String, Value>) {

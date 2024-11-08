@@ -32,8 +32,9 @@ use std::{collections::HashMap, fmt::Debug};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-type DeviceCbType<'a> = Box<dyn Fn(HashMap<String, Value>) + Send + Sync + 'a>;
-// type DeviceCbType<'a> = Box<dyn Fn(HashMap<String, ParamDataType>) + Send + Sync + 'a>;
+const CONFIG_VER: &str = "2019-02-27";
+
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum DeviceType {
@@ -48,12 +49,12 @@ pub enum DeviceType {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Node<'a> {
+pub struct Node {
     node_id: String,
     config_version: String,
     info: Info,
     attributes: Vec<NodeAttributes>,
-    devices: Vec<Device<'a>>,
+    devices: Vec<Device>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -71,8 +72,10 @@ pub struct NodeAttributes {
     pub value: String,
 }
 
+type DeviceCbType = Box<dyn Fn(HashMap<String, Value>) + Send + Sync + 'static>;
+
 #[derive(Serialize, Deserialize)]
-pub struct Device<'a> {
+pub struct Device {
     name: String,
     #[serde(rename = "type")]
     device_type: DeviceType,
@@ -81,10 +84,10 @@ pub struct Device<'a> {
     attributes: Vec<DeviceAttributes>,
     params: Vec<Param>,
     #[serde(skip)]
-    callback: Option<DeviceCbType<'a>>,
+    callback: Option<DeviceCbType>,
 }
 
-impl Debug for Device<'_> {
+impl Debug for Device {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Device")
             .field("name", &self.name)
@@ -177,23 +180,18 @@ struct Bounds {
     step: i32,
 }
 
-impl<'a> Node<'a> {
-    pub fn new(
-        node_id: String,
-        config_version: String,
-        info: Info,
-        attributes: Vec<NodeAttributes>,
-    ) -> Self {
+impl Node {
+    pub fn new(node_id: String) -> Self {
         Self {
             node_id,
-            config_version,
-            info,
-            attributes,
+            config_version: CONFIG_VER.to_string(),
+            info: Info::new(),
+            attributes: Vec::new(),
             devices: Vec::new(),
         }
     }
 
-    pub fn add_device(&mut self, device: Device<'a>) {
+    pub fn add_device(&mut self, device: Device) {
         self.devices.push(device);
     }
 
@@ -221,7 +219,13 @@ impl<'a> Node<'a> {
     }
 }
 
-impl<'a> Device<'a> {
+impl Info {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Device {
     pub fn new(
         name: &str,
         device_type: DeviceType,
@@ -242,7 +246,7 @@ impl<'a> Device<'a> {
         self.params.push(param);
     }
 
-    pub fn register_callback(&mut self, cb: DeviceCbType<'a>) {
+    pub fn register_callback(&mut self, cb: DeviceCbType) {
         self.callback = Some(Box::new(cb));
     }
 
