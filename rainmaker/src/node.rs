@@ -29,24 +29,23 @@ Devices (devices, Array of objects)
 
 use std::{collections::HashMap, fmt::Debug};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::device::Device;
 
-const CONFIG_VER: &str = "2019-02-27";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeInfo {
+#[derive(Debug, Clone, Serialize)]
+pub struct Info {
     pub name: String,
     pub fw_version: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Serialize)]
 pub struct Node {
     node_id: String,
-    config_version: String,
-    info: Option<NodeInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    info: Option<Info>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     attributes: HashMap<String, String>,
     devices: Vec<Device>,
 }
@@ -55,14 +54,13 @@ impl Node {
     pub fn new(node_id: String) -> Self {
         Self {
             node_id,
-            config_version: CONFIG_VER.to_string(),
             info: None,
             attributes: HashMap::new(),
             devices: Vec::new(),
         }
     }
 
-    pub fn set_info(&mut self, info: NodeInfo) {
+    pub fn set_info(&mut self, info: Info) {
         self.info = Some(info);
     }
 
@@ -76,26 +74,26 @@ impl Node {
         self.devices.push(device);
     }
 
+    pub fn get_param_values(&self) -> HashMap<&str, HashMap<&str, Value>> {
+        let mut params = HashMap::<&str, HashMap<&str, Value>>::new();
+        for dev in &self.devices {
+            let mut curr_params = HashMap::<&str, Value>::new();
+            for p in dev.params() {
+                curr_params.insert(p.name(), p.value().clone().into());
+            }
+            params.insert(dev.name(), curr_params);
+        }
+
+        params
+    }
+
     pub fn exeute_device_callback(&self, device_name: &str, params: HashMap<String, Value>) {
         for device in self.devices.iter() {
             // HIGHLY(x2) inefficient (but it works)
-            if device.get_name() == device_name {
+            if device.name() == device_name {
                 device.execute_callback(params);
                 break;
             }
         }
-    }
-
-    pub fn get_init_params_string(&self) -> HashMap<&str, HashMap<&str, &Value>> {
-        let mut device_params = HashMap::<&str, HashMap<&str, &Value>>::new();
-        for device in &self.devices {
-            let device_initial_params = device.get_initial_params();
-            device_params.insert(device.get_name(), device_initial_params);
-        }
-
-        // let params_init = serde_json::to_value(device_params).unwrap();
-
-        // params_init.to_string()
-        device_params
     }
 }

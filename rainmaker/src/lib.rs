@@ -84,17 +84,17 @@ impl Rainmaker {
         match curr_node {
             Some(node) => {
                 let node_config = serde_json::to_string(node.as_ref()).unwrap();
-                log::info!("publishing nodeconfig");
+                log::info!("publishing nodeconfig: {}", node_config);
                 rmaker_mqtt::publish(&node_config_topic, node_config.into())?;
 
-                let init_params = node.get_init_params_string();
+                let init_params = node.get_param_values();
                 let init_params = serde_json::to_string(&init_params).unwrap();
                 log::info!("publishing initial params: {}", init_params);
                 rmaker_mqtt::publish(&params_local_init_topic, init_params.into())?;
                 let node = node.clone();
                 thread::sleep(Duration::from_secs(1)); // wait for connection
                 rmaker_mqtt::subscribe(&remote_param_topic, move |msg| {
-                    remote_params_callback(msg, node.to_owned())
+                    remote_params_callback(msg, &node)
                 })?
             }
             None => panic!("error while starting: node not registered"),
@@ -164,7 +164,7 @@ impl Rainmaker {
     }
 }
 
-fn remote_params_callback(msg: ReceivedMessage, node: Arc<Node>) {
+fn remote_params_callback(msg: ReceivedMessage, node: &Arc<Node>) {
     let received_val: HashMap<String, HashMap<String, Value>> =
         serde_json::from_str(&String::from_utf8(msg.payload).unwrap()).unwrap();
     let devices = received_val.keys();

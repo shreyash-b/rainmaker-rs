@@ -1,20 +1,35 @@
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde::Serialize;
+use serde_json::{Number, Value};
+use std::collections::HashSet;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Serialize)]
 pub struct Param {
     name: String,
-    data_type: String,
-    properties: Vec<String>,
-    #[serde(rename = "type")]
     param_type: ParamTypes,
     ui_type: ParamUi,
+    properties: HashSet<ParamProperty>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bounds: Option<ParamBounds>,
-    initial_state: Value,
+    #[serde(rename = "data_type")]
+    value: ParamValue,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ParamProperty {
+    Read,
+    Write,
+}
+
+#[derive(Debug, Clone)]
+pub enum ParamValue {
+    String(String),
+    Bool(bool),
+    Integer(i64),
+    Float(f64),
+}
+
+#[derive(Debug, Serialize)]
 pub enum ParamTypes {
     #[serde(rename = "esp.param.power")]
     Power,
@@ -26,7 +41,7 @@ pub enum ParamTypes {
     Saturation,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Serialize)]
 pub enum ParamUi {
     #[serde(rename = "esp.ui.toggle")]
     Toggle,
@@ -36,7 +51,7 @@ pub enum ParamUi {
     HueSlider,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Serialize)]
 struct ParamBounds {
     min: i32,
     max: i32,
@@ -46,86 +61,121 @@ struct ParamBounds {
 impl Param {
     pub fn new(
         name: &str,
-        data_type: &str,
-        initial_state: Value,
+        initial_state: ParamValue,
         param_type: ParamTypes,
+        properties: HashSet<ParamProperty>,
         ui_type: ParamUi,
-        properties: Vec<String>,
     ) -> Param {
         Param {
             name: name.to_owned(),
-            data_type: data_type.to_owned(),
-            properties,
+            value: initial_state,
             param_type,
+            properties,
             ui_type,
             bounds: None,
-            initial_state,
         }
     }
 
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn get_initial_value(&self) -> &Value {
-        &self.initial_state
+    pub fn value(&self) -> &ParamValue {
+        &self.value
     }
 
     pub fn add_bounds(&mut self, min: i32, max: i32, step: i32) {
         self.bounds = Some(ParamBounds { min, max, step })
     }
 
-    pub fn new_power(name: &str, initial_state: bool) -> Self {
+    pub fn new_power(name: &str, initial_value: bool) -> Self {
+        let mut param_properties = HashSet::new();
+        param_properties.insert(ParamProperty::Read);
+        param_properties.insert(ParamProperty::Write);
+
         Self::new(
             name,
-            "bool",
-            Value::Bool(initial_state),
+            ParamValue::Bool(initial_value),
             ParamTypes::Power,
+            param_properties,
             ParamUi::Toggle,
-            vec!["read".to_string(), "write".to_string()],
         )
     }
 
-    pub fn new_brighness(name: &str, initial_state: u32) -> Self {
+    pub fn new_brighness(name: &str, initial_value: u32) -> Self {
+        let mut param_properties = HashSet::new();
+        param_properties.insert(ParamProperty::Read);
+        param_properties.insert(ParamProperty::Write);
+
         let mut param = Self::new(
             name,
-            "int",
-            Value::Number(initial_state.into()),
+            ParamValue::Integer(initial_value as i64),
             ParamTypes::Brightness,
+            param_properties,
             ParamUi::Slider,
-            vec!["read".to_string(), "write".to_string()],
         );
         param.add_bounds(0, 100, 1);
 
         param
     }
 
-    pub fn new_hue(name: &str, initial_state: u32) -> Self {
+    pub fn new_hue(name: &str, initial_value: u32) -> Self {
+        let mut param_properties = HashSet::new();
+        param_properties.insert(ParamProperty::Read);
+        param_properties.insert(ParamProperty::Write);
+
         let mut param = Self::new(
             name,
-            "int",
-            Value::Number(initial_state.into()),
+            ParamValue::Integer(initial_value as i64),
             ParamTypes::Hue,
+            param_properties,
             ParamUi::HueSlider,
-            vec!["read".to_string(), "write".to_string()],
         );
         param.add_bounds(0, 360, 1);
 
         param
     }
 
-    pub fn new_satuation(name: &str, initial_state: u32) -> Self {
+    pub fn new_satuation(name: &str, initial_value: u32) -> Self {
+        let mut param_properties = HashSet::new();
+        param_properties.insert(ParamProperty::Read);
+        param_properties.insert(ParamProperty::Write);
+
         let mut param = Self::new(
             name,
-            "int",
-            initial_state.into(),
+            ParamValue::Integer(initial_value as i64),
             ParamTypes::Saturation,
+            param_properties,
             ParamUi::Slider,
-            vec!["read".to_string(), "write".to_string()],
         );
 
         param.add_bounds(0, 100, 1);
 
         param
+    }
+}
+
+impl Serialize for ParamValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(match self {
+            ParamValue::String(_) => "string",
+            ParamValue::Bool(_) => "bool",
+            ParamValue::Integer(_) => "int",
+            ParamValue::Float(_) => "float",
+        })
+    }
+}
+
+impl From<ParamValue> for Value {
+    fn from(value: ParamValue) -> Self {
+        match value {
+            ParamValue::String(v) => Self::String(v),
+            ParamValue::Bool(v) => Self::Bool(v),
+            ParamValue::Integer(v) => Self::Number(Number::from(v)),
+            ParamValue::Float(v) => Self::Number(Number::from_f64(v).unwrap()),
+        }
     }
 }

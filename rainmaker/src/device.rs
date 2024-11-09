@@ -1,22 +1,23 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::param::Param;
 
 pub type DeviceCbType = Box<dyn Fn(HashMap<String, Value>) + Send + Sync + 'static>;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 pub struct Device {
     name: String,
     #[serde(rename = "type")]
     device_type: DeviceType,
-    #[serde(rename = "primary")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "primary")]
     primary_param: Option<String>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     attributes: HashMap<String, String>,
     params: Vec<Param>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     callback: Option<DeviceCbType>,
 }
 
@@ -62,18 +63,12 @@ impl Device {
         self.callback = Some(Box::new(cb));
     }
 
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn get_initial_params(&self) -> HashMap<&str, &Value> {
-        let mut params_value = HashMap::<&str, &Value>::new();
-        for param in &self.params {
-            params_value.insert(param.get_name(), param.get_initial_value());
-        }
-
-        // serde_json::to_value(params_value).unwrap().to_string()
-        params_value
+    pub fn params(&self) -> &[Param] {
+        &self.params
     }
 
     pub(crate) fn execute_callback(&self, params: HashMap<String, /* ParamDataType */ Value>) {
@@ -87,7 +82,7 @@ impl Device {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Serialize)]
 pub enum DeviceType {
     #[serde(rename = "esp.device.switch")]
     Switch,

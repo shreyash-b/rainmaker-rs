@@ -46,7 +46,7 @@ fn main() -> Result<(), RMakerError> {
 
     let rmaker = Rainmaker::init()?;
     let mut node = Node::new(rmaker.get_node_id());
-    node.set_info(rainmaker::node::NodeInfo {
+    node.set_info(rainmaker::node::Info {
         name: "Switch Example Node".to_string(),
         fw_version: "v1.0".to_string(),
     });
