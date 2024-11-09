@@ -4,8 +4,10 @@ use components::{
     wifi_prov::{WiFiProvMgrBle, WifiProvBleConfig},
 };
 use rainmaker::{
+    param::Param,
+    device::{Device, DeviceType},
     error::RMakerError,
-    node::{Device, Node, Param},
+    node::Node,
     Rainmaker,
 };
 use serde_json::Value;
@@ -23,15 +25,12 @@ fn initializse_logger() {
 }
 
 fn create_switch_device(device_name: &str) -> Device {
-    let mut switch_dev = Device::new(
-        device_name,
-        rainmaker::node::DeviceType::Switch,
-        "Power",
-        vec![],
-    );
+    let mut switch_dev = Device::new(device_name, DeviceType::Switch);
 
     let power_param = Param::new_power("Power", false);
+
     switch_dev.add_param(power_param);
+    switch_dev.set_primary_param("Power");
 
     switch_dev
 }
@@ -47,6 +46,11 @@ fn main() -> Result<(), RMakerError> {
 
     let rmaker = Rainmaker::init()?;
     let mut node = Node::new(rmaker.get_node_id());
+    node.set_info(rainmaker::node::NodeInfo {
+        name: "Switch Example Node".to_string(),
+        fw_version: "v1.0".to_string(),
+    });
+
     let mut switch_device = create_switch_device("Switch");
     switch_device.register_callback(Box::new(switch_cb));
 
@@ -92,9 +96,8 @@ fn main() -> Result<(), RMakerError> {
 
     log::info!("Rainmaker agent is started");
 
+    // Inorder to prevent rmaker from drop
     loop {
         std::thread::sleep(std::time::Duration::from_secs(5));
     }
-
-    Ok(())
 }

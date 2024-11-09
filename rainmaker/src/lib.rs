@@ -1,8 +1,10 @@
 #![feature(trait_alias)]
 
+pub mod device;
 pub mod error;
 pub mod node;
 pub(crate) mod proto;
+pub mod param;
 pub(crate) mod utils;
 
 mod constants;
