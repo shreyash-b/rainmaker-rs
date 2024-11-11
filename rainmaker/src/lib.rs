@@ -33,8 +33,12 @@ pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
 static NODEID: LazyLock<String> = LazyLock::new(|| {
     let fctry_partition = NvsPartition::new("fctry").unwrap();
     let fctry_nvs = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
-
-    String::from_utf8(fctry_nvs.get_bytes("node_id").unwrap()).unwrap()
+    let mut buff = [0; 32];
+    let bytes = fctry_nvs
+        .get_bytes("node_id", &mut buff)
+        .unwrap()
+        .expect("Node id not found in NVS");
+    String::from_utf8(bytes).unwrap()
 });
 
 #[allow(dead_code)]
@@ -121,9 +125,12 @@ where
         let fctry_partition = NvsPartition::new("fctry").unwrap();
         let mut rmaker_namespace = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
 
-        let node_id = rmaker_namespace.get_bytes("node_id");
-        let client_cert = rmaker_namespace.get_bytes("client_cert");
-        let client_key = rmaker_namespace.get_bytes("client_key");
+        let mut buff = vec![0; 2500];
+        let node_id = rmaker_namespace.get_bytes("node_id", &mut buff).unwrap();
+        let client_cert = rmaker_namespace
+            .get_bytes("client_cert", &mut buff)
+            .unwrap();
+        let client_key = rmaker_namespace.get_bytes("client_key", &mut buff).unwrap();
 
         if node_id.is_none() || client_cert.is_none() || client_key.is_none() {
             let claimdata_notfound_error = "Please set RMAKER_CLAIMDATA_LOC env variable pointing to your rainmaker claimdata folder";

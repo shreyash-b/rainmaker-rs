@@ -28,8 +28,15 @@ pub(crate) fn init_rmaker_mqtt() -> Result<(), RMakerError> {
     let fctry_nvs = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
 
     let node_id = &crate::NODEID;
-    let mut client_cert = fctry_nvs.get_bytes("client_cert").unwrap();
-    let mut private_key = fctry_nvs.get_bytes("client_key").unwrap();
+    let mut buff = vec![0; 2500];
+    let mut client_cert = fctry_nvs
+        .get_bytes("client_cert", &mut buff)
+        .unwrap()
+        .expect("Client Certificate not found in factory partition");
+    let mut private_key = fctry_nvs
+        .get_bytes("client_key", &mut buff)
+        .unwrap()
+        .expect("Client Key not found in factory partition");
     let mut server_cert = Vec::from(include_bytes!("../server_certs/rmaker_mqtt_server.crt"));
 
     client_cert.push(0);

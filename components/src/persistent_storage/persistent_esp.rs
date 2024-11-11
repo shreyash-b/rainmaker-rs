@@ -33,13 +33,22 @@ impl Nvs<EspNvs<NvsCustom>> {
         Ok(())
     }
 
-    pub fn get_u8(&self, key: &str) -> Option<u8> {
-        self.0.get_u8(key).unwrap()
+    pub fn set_str(&mut self, name: &str, val: &str) -> Result<(), Error> {
+        self.0.set_str(name, val)?;
+        Ok(())
     }
 
-    pub fn get_bytes(&self, name: &str) -> Option<Vec<u8>> {
-        let mut buf = [0; 2500];
-        let data = self.0.get_blob(name, &mut buf).unwrap().to_owned();
-        data.map(|v| v.to_vec())
+    pub fn get_u8(&self, key: &str) -> Result<Option<u8>, Error> {
+        self.0.get_u8(key).map_err(|x| x.into())
+    }
+
+    pub fn get_bytes(&self, name: &str, buff: &mut [u8]) -> Result<Option<Vec<u8>>, Error> {
+        let ret = self.0.get_blob(name, buff)?;
+        Ok(ret.map(|x| x.to_vec()))
+    }
+
+    pub fn get_string(&self, name: &str, buff: &mut [u8]) -> Result<Option<String>, Error> {
+        let ret = self.0.get_str(name, buff)?;
+        Ok(ret.map(|x| x.to_string()))
     }
 }

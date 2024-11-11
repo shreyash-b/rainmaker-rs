@@ -60,11 +60,29 @@ impl Nvs<PickleDb> {
         Ok(self.0.set(key, &bytes)?)
     }
 
+    pub fn set_str(&mut self, key: &str, val: &str) -> Result<(), Error> {
+        Ok(self.0.set(key, &val)?)
+    }
+
     pub fn get_u8(&self, key: &str) -> Option<u8> {
         self.0.get::<u8>(key)
     }
 
-    pub fn get_bytes(&self, key: &str) -> Option<Vec<u8>> {
-        self.0.get(key)
+    pub fn get_bytes(&self, key: &str, buff: &mut [u8]) -> Result<Option<Vec<u8>>, Error> {
+        let data: Option<Vec<u8>> = self.0.get(key);
+        if let Some(mut data_int) = data {
+            data_int.shrink_to(buff.len());
+            return Ok(Some(data_int));
+        }
+        Ok(None)
+    }
+
+    pub fn get_string(&self, key: &str, buff: &mut [u8]) -> Result<Option<String>, Error> {
+        let data: Option<String> = self.0.get(key);
+        if let Some(mut data_int) = data {
+            data_int.shrink_to(buff.len());
+            return Ok(Some(data_int));
+        }
+        Ok(None)
     }
 }
