@@ -1,3 +1,16 @@
+//! Protocol Communications
+//! 
+//! Protocomm is a component that can be used for building services with transport independent endpoints for interaction with other applications.
+//! It's architecture is roughly based on Protocomm component in ESP-IDf. You can read more about it [here].
+//! 
+//! By default it provides 2 transports(types of servers):
+//!     - Https: Uses an HTTP server.
+//!     - Gatt:  Serves a GATT application over BLE.
+//! 
+//! You can read more information about the transports at [ProtocommHttpd] and [ProtocommGatt]
+//! 
+//! [here]: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/provisioning/protocomm.html
+
 mod security;
 mod transports;
 
@@ -9,8 +22,29 @@ pub use self::security::ProtocommSecurity;
 use self::security::SecurityTrait;
 use crate::http;
 
+/// Protcomm with HTTP transport
+///
+/// Uses an HTTP server for providing interaction with endpoints.
+/// 
+/// All the registered endpoints are available as POST endpoints as "/ep_name".   
+/// The caller is responsible for setting up appropriate mechanism for interacting with this HTTP server.    
+/// For e.g., by creating a WiFi Access Point, connecting to a known WiFi network, mDNS etc.
+/// 
+/// <b> HTTP server is started as soon as it is initialized so the endpoints are available as soon as they are registered.    
+/// The service stops when the object is dropped </b>
 #[allow(private_interfaces)]
 pub type ProtocommHttpd = Protocomm<TransportHttpd>;
+
+/// Protcomm with GATT transport
+///
+/// Uses an GATT service for providing interaction with endpoints.   
+/// 
+/// All the registered endpoints are available as GATT characteristics with the UUID specified while registering them.   
+/// The caller is responsible for suitable BLE advertisement for this service.
+/// 
+/// <b> The registered endpoints are made function after calling `start()`.   
+/// This should be done after all the required endpoints are registered.   
+/// There is no corresponding `stop()` method. The service stops when the object is dropped </b> 
 #[allow(private_interfaces)]
 pub type ProtocommGatt = Protocomm<TransportGatt>;
 

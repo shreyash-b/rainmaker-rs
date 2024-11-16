@@ -6,6 +6,18 @@ pub(crate) trait SecurityTrait: Default {
     fn decrypt(&self, indata: &mut [u8]); // decryption in-place
 }
 
+/// Encrypting data in Transit
+///
+/// [ProtocommSecurity] is used for signifying the level of encryption to provide while utilizing
+/// [Protocomm]   
+/// It currently provides 2 levels of security:   
+///     - Sec0: It provides plaintext communication. Similar to `NO ENCRYPTION`   
+///     - Sec1: It provides transport encryption using AES128-CTR cipher with ECDH using Curve25519 for key
+///     exchange. Additionally it is also possible to have a Proof-Of-Possession(PoP) key for added
+///     security. PoP is need to be shared by both devices beforehand and is not shared on the
+///     communication channel
+///
+/// [Protocomm]: crate::protocomm::Protocomm
 pub enum ProtocommSecurity {
     Sec0(sec0::Sec0),
     // wrap sec1 in box due to difference in runtime sizes of sec0 and sec1
