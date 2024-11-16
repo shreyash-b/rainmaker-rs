@@ -1,5 +1,7 @@
 #![feature(trait_alias)]
 
+//! RainMaker Agent
+
 pub mod device;
 pub mod error;
 pub mod node;
@@ -43,6 +45,7 @@ static NODEID: LazyLock<String> = LazyLock::new(|| {
     String::from_utf8(bytes).unwrap()
 });
 
+/// A struct for RainMaker Agent
 #[derive(Debug)]
 pub struct Rainmaker {
     node: Option<Arc<node::Node>>,
@@ -51,6 +54,8 @@ pub struct Rainmaker {
 static mut RAINMAKER: OnceLock<Rainmaker> = OnceLock::new();
 
 impl Rainmaker {
+    /// Initializes the RainMaker Agent.
+    /// Checks if already agent is created. If not, returns the mutable reference of agent. 
     pub fn init() -> Result<&'static mut Self, RMakerError> {
         #[cfg(target_os = "linux")]
         Self::linux_init_claimdata();
@@ -64,10 +69,14 @@ impl Rainmaker {
         Ok(unsafe { RAINMAKER.get_mut().unwrap() })
     }
 
+    /// Returns Node ID.
     pub fn get_node_id(&self) -> String {
         NODEID.to_string()
     }
 
+    /// Starts the RainMaker core task which includes connect to RainMaker cloud over MQTT if hasn't been already.
+    /// Reports node configuration and initial values of parameters, subscribe to respective topics and wait for commands. 
+    /// # Ensure Node, Prov Manager, WiFi, NVS are initialized before using this function.
     pub fn start(&mut self) -> Result<(), RMakerError> {
         // initialize mqtt if not done already
         if !rmaker_mqtt::is_mqtt_initialized() {
@@ -103,10 +112,19 @@ impl Rainmaker {
         Ok(())
     }
 
+    /// Assigns a given node to 'node' field in the struct.
+    /// # Example
+    /// ```
+    /// let rmaker = Rainmaker::init()?;
+    /// let mut node = Node::new(rmaker.get_node_id());
+    /// rmaker.register_node();
+    /// ```
     pub fn register_node(&mut self, node: Node) {
         self.node = Some(node.into());
     }
 
+    /// If node is not provisioned, node assigned to a user.
+    /// This function is followed by the provisioning process.
     pub fn reg_user_mapping_ep<T: WiFiProvTransportTrait>(&self, prov_mgr: &mut WifiProvMgr<T>) {
         let node_id = self.get_node_id();
         prov_mgr.add_endpoint(
