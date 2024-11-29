@@ -3,6 +3,8 @@ use core::fmt;
 #[derive(Debug)]
 pub struct RMakerError(pub String);
 
+impl std::error::Error for RMakerError {}
+
 impl fmt::Display for RMakerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = self.0.clone();
