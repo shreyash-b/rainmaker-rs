@@ -391,18 +391,19 @@ mod ep_prov_scan {
 
         let mut resp = RespScanResult::default();
 
-        let mut data = shared.lock().unwrap();
+        let data = shared.lock().unwrap();
         let networks = data
             .scan_results
-            .as_mut()
+            .as_ref()
             .expect("WiFi scan results not found");
 
         let start_index = cmd.start_index as usize;
         let count = cmd.count as usize;
         let end_index = start_index + count;
 
-        let entries = networks
+        let entries = networks.clone()
             .drain(start_index..end_index)
+            .into_iter()
             .map(|x| x.into())
             .collect();
 
