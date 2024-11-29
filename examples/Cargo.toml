@@ -17,10 +17,15 @@ simple_logger = "4.3.3"
 
 [target.'cfg(target_os="espidf")'.dependencies]
 esp-idf-svc = { version = "0.49.1", default-features = false, features = ["binstart"] }
+rgb = "0.8.50"
 
 [[bin]]
 name = "switch"
 path = "switch.rs"
+
+[[bin]]
+name = "led"
+path = "led.rs"
 
 [build-dependencies]
 embuild = { version = "0.31.4", default-features = false, features = [

@@ -1,7 +1,8 @@
 //! Common utilities used across multiple examples
 
-use std::sync::{Arc, Mutex};
+pub mod ws2812;
 
+use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use components::{
     persistent_storage::NvsPartition,
