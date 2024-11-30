@@ -1,3 +1,9 @@
+//! A module for Parameters. One or more parameters can be assigned with multiple devices.
+//!
+//! A single instance of parameter can be assigned to multiple devices.
+//!
+//! Initialization for standard parameters(Power, Brightness, Hue, Saturation) can be done using specified standard methods.
+
 use serde::Serialize;
 use serde_json::{Number, Value};
 use std::collections::HashSet;
@@ -14,6 +20,7 @@ pub struct Param {
     value: ParamValue,
 }
 
+/// Set of access mode parameter.
 #[derive(Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ParamProperty {
@@ -21,6 +28,7 @@ pub enum ParamProperty {
     Write,
 }
 
+/// Set of the type of parameter value.
 #[derive(Debug, Clone)]
 pub enum ParamValue {
     String(String),
@@ -29,26 +37,128 @@ pub enum ParamValue {
     Float(f64),
 }
 
+/// Set of the parameter type.
+///
+/// ESP RainMaker provides a set of standard parameters. These are provided with a UI and have special handling in clients like Alexa/Google Home.
+///
+/// Refer [device list](https://rainmaker.espressif.com/docs/standard-types).
 #[derive(Debug, Serialize)]
 pub enum ParamTypes {
+    #[serde(rename = "esp.param.name")]
+    Name,
     #[serde(rename = "esp.param.power")]
     Power,
     #[serde(rename = "esp.param.brightness")]
     Brightness,
+    #[serde(rename = "esp.param.cct")]
+    CCT,
     #[serde(rename = "esp.param.hue")]
     Hue,
     #[serde(rename = "esp.param.saturation")]
     Saturation,
+    #[serde(rename = "esp.param.intensity")]
+    Intensity,
+    #[serde(rename = "esp.param.speed")]
+    Speed,
+    #[serde(rename = "esp.param.direction")]
+    Direction,
+    #[serde(rename = "esp.param.temperature")]
+    AmbientTemperature,
+    #[serde(rename = "esp.param.setpoint-temperature")]
+    TargetTemperature,
+    #[serde(rename = "esp.param.humidity")]
+    AmbientHumidity,
+    #[serde(rename = "esp.param.ota_url")]
+    OTAURL,
+    #[serde(rename = "esp.param.ota_status")]
+    OTAStatus,
+    #[serde(rename = "esp.param.ota_info")]
+    OTAInfo,
+    #[serde(rename = "esp.param.tz")]
+    Timezone,
+    #[serde(rename = "esp.param.tz_posix")]
+    TimezonePOSIX,
+    #[serde(rename = "esp.param.schedules")]
+    Schedules,
+    #[serde(rename = "esp.param.reboot")]
+    Reboot,
+    #[serde(rename = "esp.param.factory-reset")]
+    FactoryReset,
+    #[serde(rename = "esp.param.wifi-reset")]
+    WiFiReset,
+    #[serde(rename = "esp.param.toggle")]
+    ToggleController,
+    #[serde(rename = "esp.param.range")]
+    RangeController,
+    #[serde(rename = "esp.param.mode")]
+    ModeController,
+    #[serde(rename = "esp.param.lockstate")]
+    LockState,
+    #[serde(rename = "esp.param.blinds-position")]
+    BlindsPosition,
+    #[serde(rename = "esp.param.garage-position")]
+    GaragePosition,
+    #[serde(rename = "esp.param.light-mode")]
+    LightMode,
+    #[serde(rename = "esp.paran.ac-mode")]
+    ACMode,
+    #[serde(rename = "esp.param.media-activity-state")]
+    MediaState,
+    #[serde(rename = "esp.param.media-activity-control")]
+    MediaControl,
+    #[serde(rename = "esp.param.volume")]
+    Volume,
+    #[serde(rename = "esp.param.mute")]
+    Mute,
+    #[serde(rename = "esp.param.app-selector")]
+    AppSelector,
+    #[serde(rename = "esp.param.input-selector")]
+    InputSelector,
+    #[serde(rename = "esp.param.contact-detection-state")]
+    ContactDetectionState,
+    #[serde(rename = "esp.param.motion-detection-state")]
+    MotionDetectionState,
+    #[serde(rename = "esp.param.arm-state")]
+    ArmState,
+    #[serde(rename = "esp.param.fire-alarm")]
+    FireAlarmState,
+    #[serde(rename = "esp.param.water-alarm")]
+    WaterAlarmState,
+    #[serde(rename = "esp.param.carbon-monoxide-alarm")]
+    CODetectionState,
+    #[serde(rename = "esp.param.burglary-alarm")]
+    BurglaryAlarmState,
 }
 
+/// Set of standard UI elements.
 #[derive(Debug, Serialize)]
 pub enum ParamUi {
+    #[serde(rename = "esp.ui.text")]
+    Text,
     #[serde(rename = "esp.ui.toggle")]
-    Toggle,
+    ToggleSwitch,
     #[serde(rename = "esp.ui.slider")]
     Slider,
+    #[serde(rename = "esp.ui.slider")]
+    BrightnessSlider,
+    #[serde(rename = "esp.ui.slider")]
+    CCTSlider,
+    #[serde(rename = "esp.ui.slider")]
+    SaturationSlider,
     #[serde(rename = "esp.ui.hue-slider")]
     HueSlider,
+    #[serde(rename = "esp.ui.hue-circle")]
+    HueCircle,
+    #[serde(rename = "esp.ui.push-btn-big")]
+    PushButton,
+    #[serde(rename = "esp.ui.dropdown")]
+    Dropdown,
+    /// Android Only
+    #[serde(rename = "esp.ui.trigger")]
+    Trigger,
+    /// Android Only
+    #[serde(rename = "esp.ui.hidden")]
+    Hidden,
 }
 
 #[derive(Debug, Serialize)]
@@ -59,6 +169,7 @@ struct ParamBounds {
 }
 
 impl Param {
+    /// Creates a new instance of parameter. Check [ParamValue], [ParamTypes], [ParamProperty], [ParamUi] to pass valid arguments.
     pub fn new(
         name: &str,
         initial_state: ParamValue,
@@ -76,18 +187,22 @@ impl Param {
         }
     }
 
+    /// Returns name of the parameter.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns current state of parameter.
     pub fn value(&self) -> &ParamValue {
         &self.value
     }
 
+    /// Assigns minimum and maximum value to a parameter.
     pub fn add_bounds(&mut self, min: i32, max: i32, step: i32) {
         self.bounds = Some(ParamBounds { min, max, step })
     }
 
+    /// Standard function to add Power parameter.
     pub fn new_power(name: &str, initial_value: bool) -> Self {
         let mut param_properties = HashSet::new();
         param_properties.insert(ParamProperty::Read);
@@ -98,11 +213,12 @@ impl Param {
             ParamValue::Bool(initial_value),
             ParamTypes::Power,
             param_properties,
-            ParamUi::Toggle,
+            ParamUi::ToggleSwitch,
         )
     }
 
-    pub fn new_brighness(name: &str, initial_value: u32) -> Self {
+    /// Standard function to add Brightness parameter.
+    pub fn new_brightness(name: &str, initial_value: u32) -> Self {
         let mut param_properties = HashSet::new();
         param_properties.insert(ParamProperty::Read);
         param_properties.insert(ParamProperty::Write);
@@ -119,6 +235,7 @@ impl Param {
         param
     }
 
+    /// Standard function to add Hue parameter.
     pub fn new_hue(name: &str, initial_value: u32) -> Self {
         let mut param_properties = HashSet::new();
         param_properties.insert(ParamProperty::Read);
@@ -136,6 +253,7 @@ impl Param {
         param
     }
 
+    /// Standard function to add Hue parameter.
     pub fn new_satuation(name: &str, initial_value: u32) -> Self {
         let mut param_properties = HashSet::new();
         param_properties.insert(ParamProperty::Read);
