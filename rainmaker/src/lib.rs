@@ -36,7 +36,7 @@ use std::{
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
 
-pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
+pub(crate) type WrappedInArcMutex<T> = Arc<Mutex<T>>;
 
 static NODEID: LazyLock<String> = LazyLock::new(|| {
     let fctry_partition = NvsPartition::new("fctry").unwrap();
@@ -93,6 +93,7 @@ impl Rainmaker {
         Ok(unsafe { RAINMAKER.get_mut().unwrap() })
     }
 
+    /// Returns Node ID.
     pub fn get_node_id(&self) -> String {
         NODEID.to_string()
     }

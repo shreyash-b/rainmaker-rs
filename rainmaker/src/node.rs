@@ -1,3 +1,7 @@
+//! Node module of rainmaker-rs.
+//! 
+//! Methods related node are implemented for struct [Node].
+
 /*
 Node Id (node_id, String)
 Config Version (config_version, String)
@@ -33,6 +37,8 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::device::Device;
+#[allow(unused)]
+use crate::Rainmaker;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Info {
@@ -51,6 +57,15 @@ pub struct Node {
 }
 
 impl Node {
+
+/// An instance of node can be created using `new` method of the module. Node ID should be passed as an argument for the same. Node ID can be obtained from the method [`get_node_id`].
+/// ```rust
+/// let rmaker = Rainmaker::init()?;
+/// let node_id = rmaker.get_node_id();
+/// let mut node = Node::new(node_id);
+/// ```
+/// 
+/// [`get_node_id`]: crate::Rainmaker::get_node_id  
     pub fn new(node_id: String) -> Self {
         Self {
             node_id,
@@ -60,21 +75,37 @@ impl Node {
         }
     }
 
+/// Node information [Info] (Name, FW Version) is set using this function.
+/// ```rust
+/// node.set_info(Info{
+///     name: "Example Node".to_string(),
+///     fw_version: "v1.0".to_string()
+/// }); 
+/// ```
     pub fn set_info(&mut self, info: Info) {
         self.info = Some(info);
     }
 
+/// Used to define attributes of node.
     pub fn set_attribute(&mut self, name: String, value: String) {
         self.attributes
             .insert(name, value)
             .expect("Failed to set atttribute");
     }
 
+/// Multiple devices can be associated with the node by using this method. Instance of device should be passed as an argument.
+/// 
+/// Ensure that instance of [device] is created properly and callback is set appropriately in order to report updated parameter values.
+/// ```rust
+/// node.add_device(device);
+/// ```
+/// 
+/// [device]: crate::device
     pub fn add_device(&mut self, device: Device) {
         self.devices.push(device);
     }
 
-    pub fn get_param_values(&self) -> HashMap<&str, HashMap<&str, Value>> {
+    pub(crate) fn get_param_values(&self) -> HashMap<&str, HashMap<&str, Value>> {
         let mut params = HashMap::<&str, HashMap<&str, Value>>::new();
         for dev in &self.devices {
             let mut curr_params = HashMap::<&str, Value>::new();
@@ -87,9 +118,8 @@ impl Node {
         params
     }
 
-    pub fn exeute_device_callback(&self, device_name: &str, params: HashMap<String, Value>) {
+    pub(crate) fn exeute_device_callback(&self, device_name: &str, params: HashMap<String, Value>) {
         for device in self.devices.iter() {
-            // HIGHLY(x2) inefficient (but it works)
             if device.name() == device_name {
                 device.execute_callback(params);
                 break;
