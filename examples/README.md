@@ -17,14 +17,16 @@ cargo run --target <target> --bin led
 ```
 - What to expect   
 This is an example for building cross platform applications with changes only required in the driver. Provides a `LED` device having an On/Off toggle, and slider controls for brightness, saturation and hue.    
-On official ESP32-C3 devkit, it controls the onboard addressable LED connected on GPIO8. You may need to tweak the pin in the `main` function(in the call `WS2812RMT::new`) if your configuration isn't the same.   
+It controls the onboard addressable LED connected on various ESP devkits. By default it controls the LED connected to GPIO8, you may need to tweak the pin in the `main` function(in the call `WS2812RMT::new`) if your devkit has the LED on some other pin isn't the same.   
 On linux it simply logs the changes in values.
 
 ### General Instructions about examples
 - While running any example for the first, you will need to perform the provisioning process.   
 It will associate the node control to the RainMaker account on the phone app as well as provide the the credentials for WiFi connectivity.  
 
-- For provisioning, you'll need to select the device manually in the phone app(device name is `PROV_SERVICE`) and follow the prompts thereafter.
+- For provisioning, you'll need to select the add device option and then select the device manually using BLE scheme in the phone app(device name is `PROV_SERVICE`). Follow onscreen prompts thereafter.
+
+- Bluetooth needs to be powered on on Linux before executing exe
 
 - Reseting WiFi Provisioning  
 If you need to re-provision the node for any reasons, here's how you can do it.  

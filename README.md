@@ -1,9 +1,11 @@
 # Rust Implementation of ESP Rainmaker
 
 A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux using Rust.
+---
 
-Full fledged C based ESP RainMaker SDK can be found [here](https://github.com/espressif/esp-rainmaker).
-
+- ESP RainMaker is end-to-end IoT development platform which enables development of IoT applications which can be controled remotely.
+- However, the C based ESP RainMaker SDK(which can be found [here](https://github.com/espressif/esp-rainmaker)) only supports execution on Espressif's ESP32 SOCs.
+- This crate tries to  implment similar functionalities for Linux platform along with ESP32(which can furter be extended to other microcontrollers).`
 
 
 ## Prerequisites
@@ -57,7 +59,7 @@ mkdir -p ~/.config/rmaker/nvs
 esp-rainmaker-cli login
 esp-rainmaker-cli claim --mac <MAC addr>
 ```
-The certificates are stored in /home/\<user>/.espressif/rainmaker/claim_data/\<account_id>/<mac_address>
+The certificates are stored in `/home/<user>/.espressif/rainmaker/claim_data/<account_id>/<mac_address>`
 
 3. Run
 
