@@ -129,50 +129,50 @@ impl Device {
 /// Refer [device list](https://rainmaker.espressif.com/docs/standard-types).
 #[derive(Debug, Serialize)]
 pub enum DeviceType {
-    #[serde(rename = "esp.Device.Switch")]
+    #[serde(rename = "esp.device.switch")]
     Switch,
-    #[serde(rename = "esp.Device.Lightbulb")]
+    #[serde(rename = "esp.device.lightbulb")]
     Lightbulb,
-    #[serde(rename = "esp.Device.Light")]
+    #[serde(rename = "esp.device.light")]
     Light,
-    #[serde(rename = "esp.Device.Fan")]
+    #[serde(rename = "esp.device.fan")]
     Fan,
-    #[serde(rename = "esp.Device.TemperatureSensor")]
+    #[serde(rename = "esp.device.temperature-sensor")]
     TemperatureSensor,
-    #[serde(rename = "esp.Device.Outlet")]
+    #[serde(rename = "esp.device.outlet")]
     SmartPlugOutlet,
-    #[serde(rename = "esp.Device.Plug")]
+    #[serde(rename = "esp.device.plug")]
     Smartplug,
-    #[serde(rename = "esp.Device.Socket")]
+    #[serde(rename = "esp.device.socket")]
     SmartplugSocket,
-    #[serde(rename = "esp.Device.Lock")]
+    #[serde(rename = "esp.device.lock")]
     Smartlock,
-    #[serde(rename = "esp.Device.BlindsInternal")]
+    #[serde(rename = "esp.device.blinds-internal")]
     InteriorBlind,
-    #[serde(rename = "esp.Device.BlindsExternal")]
+    #[serde(rename = "esp.device.blinds-external")]
     ExteriorBlind,
-    #[serde(rename = "esp.Device.GarageDoor")]
+    #[serde(rename = "esp.device.garage-door")]
     GarageDoor,
-    #[serde(rename = "esp.Device.Speaker")]
+    #[serde(rename = "esp.device.speaker")]
     Speaker,
-    #[serde(rename = "esp.Device.AirConditioner")]
+    #[serde(rename = "esp.device.air-conditioner")]
     AirConditioner,
-    #[serde(rename = "esp.Device.Thermostat")]
+    #[serde(rename = "esp.device.thermostat")]
     Thermostat,
-    #[serde(rename = "esp.Device.Tv")]
+    #[serde(rename = "esp.device.tv")]
     TV,
-    #[serde(rename = "esp.Device.Washer")]
+    #[serde(rename = "esp.device.washer")]
     Washer,
-    #[serde(rename = "esp.Device.ContactSensor")]
+    #[serde(rename = "esp.device.contact-sensor")]
     ContactSensor,
-    #[serde(rename = "esp.Device.MotionSensor")]
+    #[serde(rename = "esp.device.motion-sensor")]
     MotionSensor,
-    #[serde(rename = "esp.Device.Doorbell")]
+    #[serde(rename = "esp.device.doorbell")]
     Doorbell,
-    #[serde(rename = "esp.Device.SecurityPanel")]
+    #[serde(rename = "esp.device.security-panel")]
     SecurityPanel,
-    #[serde(rename = "esp.Device.WaterHeater")]
+    #[serde(rename = "esp.device.water-heater")]
     X,
-    #[serde(rename = "esp.Device.Other")]
+    #[serde(rename = "esp.device.other")]
     OTHER,
 }

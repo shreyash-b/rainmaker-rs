@@ -139,12 +139,6 @@ pub enum ParamUi {
     ToggleSwitch,
     #[serde(rename = "esp.ui.slider")]
     Slider,
-    #[serde(rename = "esp.ui.slider")]
-    BrightnessSlider,
-    #[serde(rename = "esp.ui.slider")]
-    CCTSlider,
-    #[serde(rename = "esp.ui.slider")]
-    SaturationSlider,
     #[serde(rename = "esp.ui.hue-slider")]
     HueSlider,
     #[serde(rename = "esp.ui.hue-circle")]
