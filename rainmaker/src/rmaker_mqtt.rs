@@ -28,8 +28,15 @@ pub(crate) fn init_rmaker_mqtt() -> Result<(), RMakerError> {
     let fctry_nvs = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
 
     let node_id = &crate::NODEID;
-    let mut client_cert = fctry_nvs.get_bytes("client_cert").unwrap();
-    let mut private_key = fctry_nvs.get_bytes("client_key").unwrap();
+    let mut buff = vec![0; 2500];
+    let mut client_cert = fctry_nvs
+        .get_bytes("client_cert", &mut buff)
+        .unwrap()
+        .expect("Client Certificate not found in factory partition");
+    let mut private_key = fctry_nvs
+        .get_bytes("client_key", &mut buff)
+        .unwrap()
+        .expect("Client Key not found in factory partition");
     let mut server_cert = Vec::from(include_bytes!("../server_certs/rmaker_mqtt_server.crt"));
 
     client_cert.push(0);
@@ -69,8 +76,6 @@ pub(crate) fn is_mqtt_connected() -> bool {
 }
 
 fn mqtt_callback(event: MqttEvent) {
-    let print_mqtt_event = |event_name: MqttEvent| log::info!("mqtt: {event_name:?}");
-
     match event {
         MqttEvent::Received(msg) => {
             let topic = &msg.topic;
@@ -80,12 +85,7 @@ fn mqtt_callback(event: MqttEvent) {
             }
         }
 
-        MqttEvent::Published | MqttEvent::Subscribed => {
-            print_mqtt_event(event);
-        }
-
         MqttEvent::Connected => {
-            print_mqtt_event(event);
             CONNECTED.store(true, std::sync::atomic::Ordering::SeqCst);
             let mut mqtt = MQTT_INNER.get().unwrap().lock().unwrap();
             for topic in MQTT_CBS.read().unwrap().keys() {
@@ -106,7 +106,6 @@ fn mqtt_callback(event: MqttEvent) {
         }
 
         MqttEvent::Disconnected => {
-            print_mqtt_event(event);
             CONNECTED.store(false, std::sync::atomic::Ordering::SeqCst);
         }
 

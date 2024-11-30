@@ -1,31 +1,61 @@
-mod proto;
+//! Protocol Communications
+//!
+//! Protocomm is a component that can be used for building services with transport independent endpoints for interaction with other applications.
+//! It's architecture is roughly based on Protocomm component in ESP-IDf. You can read more about it [here].
+//!
+//! By default it provides 2 transports(types of servers):
+//!     - Https: Uses an HTTP server.
+//!     - Gatt:  Serves a GATT application over BLE.
+//!
+//! You can read more information about the transports at [ProtocommHttpd] and [ProtocommGatt]
+//!
+//! [here]: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/provisioning/protocomm.html
+
 mod security;
-pub mod transports;
+mod transports;
 
-use crate::{error::Error, http::HttpConfiguration};
-pub use prost::Message;
-pub use proto::*;
-use std::collections::HashMap;
-use transports::httpd::TransportHttpd;
-
-use transports::TransportTrait;
+use std::sync::Arc;
+use transports::{TransportGatt, TransportHttpd};
+use uuid::Uuid;
 
 pub use self::security::ProtocommSecurity;
 use self::security::SecurityTrait;
-use crate::utils::{wrap_in_arc_mutex, WrappedInArcMutex};
+use crate::http;
 
-const LOGGER_TAG: &str = "protocomm";
+/// Protcomm with HTTP transport
+///
+/// Uses an HTTP server for providing interaction with endpoints.
+///
+/// All the registered endpoints are available as POST endpoints as "/ep_name".   
+/// The caller is responsible for setting up appropriate mechanism for interacting with this HTTP server.    
+/// For e.g., by creating a WiFi Access Point, connecting to a known WiFi network, mDNS etc.
+///
+/// <b> HTTP server is started as soon as it is initialized so the endpoints are available as soon as they are registered.    
+/// The service stops when the object is dropped </b>
+#[allow(private_interfaces)]
+pub type ProtocommHttpd = Protocomm<TransportHttpd>;
 
-pub enum ProtocomTransportConfig {
-    Httpd(HttpConfiguration),
+/// Protcomm with GATT transport
+///
+/// Uses an GATT service for providing interaction with endpoints.   
+///
+/// All the registered endpoints are available as GATT characteristics with the UUID specified while registering them.   
+/// The caller is responsible for suitable BLE advertisement for this service.
+///
+/// <b> The registered endpoints are made function after calling `start()`.   
+/// This should be done after all the required endpoints are registered.   
+/// There is no corresponding `stop()` method. The service stops when the object is dropped </b>
+#[allow(private_interfaces)]
+pub type ProtocommGatt = Protocomm<TransportGatt>;
+
+#[derive(Default)]
+pub struct ProtocommGattConfig {
+    pub service_uuid: Uuid,
 }
 
-pub struct ProtocommConfig {
-    pub security: ProtocommSecurity,
-    pub transport: ProtocomTransportConfig,
-}
+pub type ProtocommHttpdConfig = http::HttpConfiguration;
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EndpointType {
     Version,
     Security,
@@ -33,101 +63,117 @@ pub(crate) enum EndpointType {
     Other,
 }
 
-#[derive(Default)]
-pub struct CallbackData {
-    sec: ProtocommSecurity,
-    ep_ype: HashMap<String, EndpointType>,
+pub type ProtocommCallbackType = Box<dyn Fn(&str, &[u8]) -> Vec<u8> + Send + Sync + 'static>;
+
+pub struct Protocomm<T> {
+    transport: T,
+    sec: Arc<ProtocommSecurity>,
 }
 
-pub struct Protocomm<'a> {
-    transport: TransportHttpd<'a>, // change this to accepting trait after implementing BLE transport
-    cb_data: WrappedInArcMutex<CallbackData>,
-}
+impl Protocomm<TransportGatt> {
+    pub fn new(gatt_config: ProtocommGattConfig, security: ProtocommSecurity) -> Self {
+        let transport_ble = transports::TransportGatt::new(gatt_config.service_uuid);
 
-impl<'a> Protocomm<'a> {
-    pub fn new(config: ProtocommConfig) -> Self {
-        let cb_data = wrap_in_arc_mutex(CallbackData {
-            sec: config.security,
-            ..Default::default()
-        });
-
-        let mut httpd = match config.transport {
-            ProtocomTransportConfig::Httpd(http_config) => TransportHttpd::new(http_config),
-        };
-        httpd.register_cb_data(cb_data.clone());
         Self {
-            transport: httpd,
-            cb_data,
+            transport: transport_ble,
+            sec: Arc::new(security),
         }
     }
 
-    pub fn register_endpoint<T>(&mut self, ep_name: &str, callback: T) -> Result<(), Error>
-    where
-        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
-    {
-        self.register_endpoint_internal(ep_name, callback, EndpointType::Other)
+    pub fn set_version_info(&mut self, uuid: Uuid, ep_name: &str, version_info: String) {
+        self.transport.add_endpoint(
+            uuid,
+            ep_name,
+            Box::new(move |_ep, _data| version_info.as_bytes().to_vec()),
+            EndpointType::Version,
+            self.sec.clone(),
+        );
     }
 
-    pub fn set_security_endpoint(&mut self, ep_name: &str) -> Result<(), Error> {
-        // supply dummy callback here, appropriate callback is called
-        self.register_endpoint_internal(ep_name, |_ep, _data| vec![], EndpointType::Security)
+    pub fn set_security_endpoint(&mut self, uuid: Uuid, ep_name: &str) {
+        self.transport.add_endpoint(
+            uuid,
+            ep_name,
+            Box::new(|_, _| Vec::default()),
+            EndpointType::Security,
+            self.sec.clone(),
+        );
     }
 
-    pub fn set_version_endpoint(
+    pub fn register_endpoint(
         &mut self,
+        uuid: Uuid,
         ep_name: &str,
-        version_str: String,
-    ) -> Result<(), Error> {
+        callback: ProtocommCallbackType,
+    ) {
+        log::debug!("Registering endpoint: {}", ep_name);
+        self.transport.add_endpoint(
+            uuid,
+            ep_name,
+            callback,
+            EndpointType::Other,
+            self.sec.clone(),
+        );
+        log::debug!("Registered endpoint: {}", ep_name);
+    }
+
+    pub fn start(&mut self) {
+        self.transport.start();
+    }
+}
+
+impl Protocomm<TransportHttpd> {
+    pub fn new(config: ProtocommHttpdConfig, security: ProtocommSecurity) -> Self {
+        let transport = TransportHttpd::new(config);
+        Self {
+            transport,
+            sec: Arc::new(security),
+        }
+    }
+
+    pub fn set_version_info(&mut self, ep_name: &str, version_info: String) {
         self.register_endpoint_internal(
             ep_name,
-            move |_ep, _data| version_str.to_owned().into(),
+            Box::new(move |_ep, _data| version_info.as_bytes().to_vec()),
             EndpointType::Version,
-        )
+        );
     }
 
-    fn register_endpoint_internal<T>(
+    pub fn set_security_endpoint(&mut self, ep_name: &str) {
+        self.register_endpoint_internal(ep_name, Box::new(|_, _| vec![]), EndpointType::Security);
+    }
+
+    pub fn register_endpoint(&mut self, ep_name: &str, callback: ProtocommCallbackType) {
+        self.register_endpoint_internal(ep_name, callback, EndpointType::Other);
+    }
+
+    fn register_endpoint_internal(
         &mut self,
         ep_name: &str,
-        callback: T,
+        cb: ProtocommCallbackType,
         ep_type: EndpointType,
-    ) -> Result<(), Error>
-    where
-        T: Fn(String, Vec<u8>) -> Vec<u8> + Send + Sync + 'static,
-    {
-        let mut ep_data = self.cb_data.as_ref().lock().unwrap();
-        ep_data.ep_ype.insert(ep_name.to_string(), ep_type);
-
-        self.transport.add_endpoint(ep_name, callback);
-        log::debug!(target: LOGGER_TAG, "registered handler for {ep_name}");
-
-        Ok(())
+    ) {
+        let sec = self.sec.clone();
+        self.transport.add_endpoint(ep_name, cb, ep_type, sec);
     }
 }
 
-pub(crate) fn protocomm_req_handler<T>(
-    ep: String,
-    data: Vec<u8>,
-    cb: T,
-    cb_data: WrappedInArcMutex<CallbackData>,
-) -> Vec<u8>
-where
-    T: Fn(String, Vec<u8>) -> Vec<u8>,
-{
-    let mut cb_data = cb_data.lock().unwrap();
-    let curr_ep_type = cb_data.ep_ype.get(&ep).unwrap();
-
-    match curr_ep_type {
+pub(crate) fn protocomm_req_handler(
+    ep: &str,
+    data: &[u8],
+    cb: &ProtocommCallbackType,
+    ep_type: &EndpointType,
+    sec: &Arc<ProtocommSecurity>,
+) -> Vec<u8> {
+    match ep_type {
         EndpointType::Version => cb(ep, data),
-        EndpointType::Security => {
-            let sec = &mut cb_data.sec;
-            sec.security_handler(ep, data)
-        }
+        EndpointType::Security => sec.security_handler(ep, data.to_vec()),
         EndpointType::Other => {
-            let sec = &mut cb_data.sec;
-            let mut data_mut = data.clone();
+            // for decrypting
+            let mut data = data.to_vec();
 
-            sec.decrypt(&mut data_mut);
-            let mut res = cb(ep, data_mut);
+            sec.decrypt(&mut data);
+            let mut res = cb(ep, &data);
             sec.encrypt(&mut res);
 
             res

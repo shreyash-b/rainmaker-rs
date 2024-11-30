@@ -12,13 +12,10 @@ components = { path = "../components" }
 log = { version = "0.4.20", default-features = false }
 serde = { version = "1.0.196", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-prost = "0.12.3"
+quick-protobuf = "0.8.1"
 
 [target.'cfg(target_os="linux")'.dependencies]
 simple_logger = "4.3.3"
 
 [target.'cfg(target_os="espidf")'.dependencies]
 esp-idf-svc = { version = "0.49.1", default-features = false, features = ["alloc"] }
-
-[build-dependencies]
-prost-build = "0.12.3"

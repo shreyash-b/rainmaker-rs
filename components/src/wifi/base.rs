@@ -4,7 +4,7 @@ pub struct WifiMgr<T> {
     pub(crate) client: T,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum WifiAuthMode {
     #[default]
     None,
@@ -34,7 +34,7 @@ pub struct WifiApConfig {
     pub auth: WifiAuthMode,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WifiApInfo {
     pub ssid: String,
     pub auth: WifiAuthMode,

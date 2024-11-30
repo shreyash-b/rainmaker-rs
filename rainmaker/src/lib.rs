@@ -1,67 +1,107 @@
 #![feature(trait_alias)]
-include!(concat!(env!("OUT_DIR"), "/rainmaker.rs"));
 
+//! # Rust Implementation of ESP Rainmaker.
+//!
+//! A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux using Rust.
+//!
+//! Full fledged C based ESP RainMaker SDK can be found [here](https://github.com/espressif/esp-rainmaker).
+
+pub mod device;
 pub mod error;
 pub mod node;
+pub mod param;
+pub(crate) mod proto;
 pub(crate) mod utils;
-pub mod wifi_prov;
 
+mod constants;
 mod rmaker_mqtt;
-
 use components::{
     mqtt::ReceivedMessage,
     persistent_storage::{Nvs, NvsPartition},
+    wifi_prov::{WiFiProvTransportTrait, WifiProvMgr},
 };
+use constants::*;
 use error::RMakerError;
 use node::Node;
-use prost::Message;
+use proto::esp_rmaker_user_mapping::*;
+use quick_protobuf::{MessageWrite, Writer};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, LazyLock, Mutex, OnceLock},
     thread,
     time::Duration,
 };
-use wifi_prov::WifiProvisioningMgr;
 
 #[cfg(target_os = "linux")]
 use std::{env, fs, path::Path};
 
-pub type WrappedInArcMutex<T> = Arc<Mutex<T>>;
+pub(crate) type WrappedInArcMutex<T> = Arc<Mutex<T>>;
 
 static NODEID: LazyLock<String> = LazyLock::new(|| {
     let fctry_partition = NvsPartition::new("fctry").unwrap();
     let fctry_nvs = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
-
-    String::from_utf8(fctry_nvs.get_bytes("node_id").unwrap()).unwrap()
+    let mut buff = [0; 32];
+    let bytes = fctry_nvs
+        .get_bytes("node_id", &mut buff)
+        .unwrap()
+        .expect("Node id not found in NVS");
+    String::from_utf8(bytes).unwrap()
 });
 
-#[allow(dead_code)]
-pub struct Rainmaker<'a> {
-    node_id: String,
-    node: Option<Arc<node::Node<'a>>>,
+/// A struct for RainMaker Agent.
+#[derive(Debug)]
+pub struct Rainmaker {
+    node: Option<Arc<node::Node>>,
 }
 
-unsafe impl Send for Rainmaker<'_> {}
+static mut RAINMAKER: OnceLock<Rainmaker> = OnceLock::new();
 
-impl<'a> Rainmaker<'a>
-where
-    'a: 'static,
-{
-    pub fn new() -> Result<Self, RMakerError> {
+impl Rainmaker {
+    /// Initializes the RainMaker Agent.
+    ///
+    /// Throws an error if agent is already initialized else returns the mutable reference of Rainmaker.
+    ///
+    /// This function panics if node claiming is not performed.
+    ///
+    /// For claiming process, ensure following steps are performed:
+    /// - Install [`esp-rainmaker-cli`](https://rainmaker.espressif.com/docs/cli-setup/) package.
+    /// - - For ESP:
+    ///     [Follow these steps](https://rainmaker.espressif.com/docs/cli-usage/)
+    ///   - For Linux:
+    ///     1. Create directories for storing persistent data
+    ///         ```bash
+    ///             mkdir -p ~/.config/rmaker/fctry    
+    ///             mkdir -p ~/.config/rmaker/nvs
+    ///         ```
+    ///     2. Fetch claim data using rainmaker cli
+    ///         ```bash
+    ///             ./rainmaker.py login
+    ///             ./rainmaker.py claim --mac <MAC addr> /dev/null
+    ///         ```
+    ///     3. Set the "RMAKER_CLAIMDATA_PATH" environment variable to the folder containing the Node X509 certificate and key (usually stored at ```/home/<user>/.espressif/rainmaker/claim_data/<acc_id>/<mac_addr>```)
+    pub fn init() -> Result<&'static mut Self, RMakerError> {
         #[cfg(target_os = "linux")]
-        Rainmaker::linux_init_claimdata();
+        Self::linux_init_claimdata();
 
-        Ok(Self {
-            node_id: NODEID.clone(),
-            node: None,
-        })
+        if unsafe { RAINMAKER.get().is_some() } {
+            return Err(RMakerError("Rainmaker already initialized".to_string()));
+        }
+        unsafe {
+            RAINMAKER.set(Self { node: None }).unwrap();
+        }
+        Ok(unsafe { RAINMAKER.get_mut().unwrap() })
     }
 
+    /// Returns Node ID.
     pub fn get_node_id(&self) -> String {
-        self.node_id.clone()
+        NODEID.to_string()
     }
 
+    /// Starts the RainMaker core task which includes connect to RainMaker cloud over MQTT if hasn't been already.
+    ///
+    /// Reports node configuration and initial values of parameters, subscribe to respective topics and wait for commands.
+    /// # Ensure agent(node) is initialized and WiFi is connected before using this function.
     pub fn start(&mut self) -> Result<(), RMakerError> {
         // initialize mqtt if not done already
         if !rmaker_mqtt::is_mqtt_initialized() {
@@ -69,50 +109,58 @@ where
         }
 
         let curr_node = &self.node;
-        let node_id = self.node_id.clone();
-        let node_config_topic = format!("node/{}/config", node_id);
-        let params_local_init_topic = format!("node/{}/params/local/init", node_id);
-        let remote_param_topic = format!("node/{}/params/remote", node_id);
+        let node_id = NODEID.to_string();
+        let node_config_topic = format!("node/{}/{}", node_id, NODE_CONFIG_TOPIC_SUFFIX);
+        let params_local_init_topic =
+            format!("node/{}/{}", node_id, NODE_PARAMS_LOCAL_INIT_TOPIC_SUFFIX);
+        let remote_param_topic = format!("node/{}/{}", node_id, NODE_PARAMS_REMOTE_TOPIC_SUFFIX);
 
         match curr_node {
             Some(node) => {
                 let node_config = serde_json::to_string(node.as_ref()).unwrap();
-                log::info!("publishing nodeconfig");
+                log::info!("publishing nodeconfig: {}", node_config);
                 rmaker_mqtt::publish(&node_config_topic, node_config.into())?;
 
-                let init_params = node.get_init_params_string();
+                let init_params = node.get_param_values();
                 let init_params = serde_json::to_string(&init_params).unwrap();
                 log::info!("publishing initial params: {}", init_params);
                 rmaker_mqtt::publish(&params_local_init_topic, init_params.into())?;
                 let node = node.clone();
-                // while mqtt.subscribe(remote_param_topic.as_str(), &mqtt::QoSLevel::AtLeastOnce).is_err() {
-                //     log::error!("Unable to subscribe. Trying again in 10 seconds");
-                //     std::thread::sleep(std::time::Duration::from_secs(10));
-                // }
-
-                // temporary workaround
                 thread::sleep(Duration::from_secs(1)); // wait for connection
                 rmaker_mqtt::subscribe(&remote_param_topic, move |msg| {
-                    remote_params_callback(msg, node.to_owned())
+                    remote_params_callback(msg, &node)
                 })?
             }
             None => panic!("error while starting: node not registered"),
         }
 
-        // #[cfg(target_os="espidf")]
-
         Ok(())
     }
 
-    pub fn register_node(&mut self, node: node::Node<'a>) {
+    /// Registers node to agent.
+    ///
+    /// This should be called before the `start()` function.
+    /// # Example
+    /// ```rust
+    /// let rmaker = Rainmaker::init()?;
+    /// let mut node = Node::new(rmaker.get_node_id());
+    /// rmaker.register_node();
+    /// rmaker.start();
+    /// ```
+    ///
+    pub fn register_node(&mut self, node: Node) {
         self.node = Some(node.into());
     }
 
-    pub fn reg_user_mapping_ep(&self, prov_msg: &mut WifiProvisioningMgr) {
+    /// Registers the endpoint used for claiming process with `WiFiProvMgr`. This is used for associating a RainMaker node with the user account performing the provisioning.
+    ///
+    /// This should be called before `WiFiProvMgr::start()`
+    pub fn reg_user_mapping_ep<T: WiFiProvTransportTrait>(&self, prov_mgr: &mut WifiProvMgr<T>) {
         let node_id = self.get_node_id();
-        prov_msg.add_endpoint("cloud_user_assoc", move |ep, data| -> Vec<u8> {
-            cloud_user_assoc_callback(ep, data, node_id.to_owned())
-        })
+        prov_mgr.add_endpoint(
+            "cloud_user_assoc",
+            Box::new(move |ep, data| -> Vec<u8> { cloud_user_assoc_callback(ep, data, &node_id) }),
+        )
     }
 
     #[cfg(target_os = "linux")]
@@ -120,9 +168,12 @@ where
         let fctry_partition = NvsPartition::new("fctry").unwrap();
         let mut rmaker_namespace = Nvs::new(fctry_partition, "rmaker_creds").unwrap();
 
-        let node_id = rmaker_namespace.get_bytes("node_id");
-        let client_cert = rmaker_namespace.get_bytes("client_cert");
-        let client_key = rmaker_namespace.get_bytes("client_key");
+        let mut buff = vec![0; 2500];
+        let node_id = rmaker_namespace.get_bytes("node_id", &mut buff).unwrap();
+        let client_cert = rmaker_namespace
+            .get_bytes("client_cert", &mut buff)
+            .unwrap();
+        let client_key = rmaker_namespace.get_bytes("client_key", &mut buff).unwrap();
 
         if node_id.is_none() || client_cert.is_none() || client_key.is_none() {
             let claimdata_notfound_error = "Please set RMAKER_CLAIMDATA_LOC env variable pointing to your rainmaker claimdata folder";
@@ -161,7 +212,7 @@ where
     }
 }
 
-fn remote_params_callback(msg: ReceivedMessage, node: Arc<Node<'_>>) {
+fn remote_params_callback(msg: ReceivedMessage, node: &Arc<Node>) {
     let received_val: HashMap<String, HashMap<String, Value>> =
         serde_json::from_str(&String::from_utf8(msg.payload).unwrap()).unwrap();
     let devices = received_val.keys();
@@ -171,12 +222,12 @@ fn remote_params_callback(msg: ReceivedMessage, node: Arc<Node<'_>>) {
     }
 }
 
-fn cloud_user_assoc_callback(_ep: String, data: Vec<u8>, node_id: String) -> Vec<u8> {
-    let req_proto = RMakerConfigPayload::decode(&*data).unwrap();
-    let req_payload = req_proto.payload.unwrap();
+fn cloud_user_assoc_callback(_ep: &str, data: &[u8], node_id: &str) -> Vec<u8> {
+    let req_proto = RMakerConfigPayload::try_from(data).unwrap();
+    let req_payload = req_proto.payload;
 
     let (user_id, secret_key) = match req_payload {
-        r_maker_config_payload::Payload::CmdSetUserMapping(p) => (p.user_id, p.secret_key),
+        mod_RMakerConfigPayload::OneOfpayload::cmd_set_user_mapping(p) => (p.UserID, p.SecretKey),
         _ => unreachable!(),
     };
 
@@ -189,7 +240,7 @@ fn cloud_user_assoc_callback(_ep: String, data: Vec<u8>, node_id: String) -> Vec
         "reset": true
     });
 
-    let user_mapping_topic = format!("node/{}/user/mapping", node_id);
+    let user_mapping_topic = format!("node/{}/{}", node_id, USER_MAPPING_TOPIC_SUFFIX);
 
     if !rmaker_mqtt::is_mqtt_initialized() && rmaker_mqtt::init_rmaker_mqtt().is_err() {
         // cannot publish user mapping payload
@@ -206,35 +257,43 @@ fn cloud_user_assoc_callback(_ep: String, data: Vec<u8>, node_id: String) -> Vec
     }
 
     let res_proto = RMakerConfigPayload {
-        msg: RMakerConfigMsgType::TypeRespSetUserMapping.into(),
-        payload: Some(r_maker_config_payload::Payload::RespSetUserMapping(
-            RespSetUserMapping {
-                status: RMakerConfigStatus::Success.into(),
-                node_id,
-            },
-        )),
+        msg: RMakerConfigMsgType::TypeRespSetUserMapping,
+        payload: mod_RMakerConfigPayload::OneOfpayload::resp_set_user_mapping(RespSetUserMapping {
+            Status: RMakerConfigStatus::Success,
+            NodeId: node_id.to_string(),
+        }),
     };
 
-    res_proto.encode_to_vec()
+    let mut out_vec = vec![];
+    let mut writer = Writer::new(&mut out_vec);
+
+    res_proto.write_message(&mut writer).unwrap();
+
+    out_vec
 }
 
-pub fn prevent_drop() {
-    // eat 5-star, do nothing
-    // to avoid variables from dropping
-    loop {
-        std::thread::sleep(std::time::Duration::from_secs(5));
-    }
-}
-
+/// Reports parameters values of devices to the RainMaker cloud over MQTT.
+///
+/// Appropriate Device Name and a map of parameters(name: value) must be provided.
+///
+/// Example (Can be used in a device callback function)
+/// ```
+/// fn device_cb(params: HashMaps<String, Value>)
+/// {
+///     log::info!("Received update: {:?}", params);
+///     log::info!("Reporting: {:?}", params);
+///     rainmaker::report_params("DeviceName", params);
+/// }
+/// ```
 pub fn report_params(device_name: &str, params: HashMap<String, Value>) {
     let updated_params = json!({
         device_name: params
     });
 
-    log::info!("reporting params: {}", updated_params.to_string());
-    // let mqtt = self.mqtt_client.as_ref().unwrap();
-    // let mut mqtt = mqtt.lock().unwrap();
-
-    let local_params_topic = format!("node/{}/params/local", NODEID.as_str());
+    let local_params_topic = format!(
+        "node/{}/{}",
+        NODEID.as_str(),
+        NODE_PARAMS_LOCAL_TOPIC_SUFFIX
+    );
     rmaker_mqtt::publish(&local_params_topic, updated_params.to_string().into_bytes()).unwrap();
 }

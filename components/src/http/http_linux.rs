@@ -3,14 +3,14 @@
 static LOGGER_TARGET: &str = "http_server";
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
+use std::{net::SocketAddr, sync::mpsc};
 
-use log::{error, info};
+use log::error;
 
 use crate::error::Error;
 use crate::http::base::*;
+use crate::utils::{wrap_in_arc_mutex, WrappedInArcMutex};
 
 impl From<&tiny_http::Method> for HttpMethod {
     fn from(inp: &tiny_http::Method) -> Self {
@@ -37,11 +37,6 @@ impl From<&mut tiny_http::Request> for HttpRequest {
 }
 
 pub trait HttpEndpointCallback<'a> = Fn(HttpRequest) -> HttpResponse + Send + Sync + 'a;
-type WrappedInArcMutex<T> = Arc<Mutex<T>>;
-
-fn wrap_in_arc_mutex<T>(inp: T) -> WrappedInArcMutex<T> {
-    Arc::new(Mutex::new(inp))
-}
 
 // http server from esp-idf-svc starts listening as soon as it is initialized and supports registering callback handlers later on
 // however tiny_http is a blocking server
@@ -121,7 +116,7 @@ impl HttpServer<HttpServerLinux> {
         let callbacks_hashmap = paths_hmap.get_mut(&path).unwrap();
         match callbacks_hashmap.try_insert(method, Box::new(callback)) {
             Ok(_) => {
-                info!(target: LOGGER_TARGET, "successfully registered handler for {path}")
+                log::debug!(target: LOGGER_TARGET, "Registered handler for {path}")
             }
             Err(_) => {
                 error!(target: LOGGER_TARGET, "handler for {path} for already exists");

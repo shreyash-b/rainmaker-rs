@@ -1,54 +1,37 @@
 # Rust Implementation of ESP Rainmaker
 
 A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux using Rust.
+---
 
-Full fledged C based ESP RainMaker SDK can be found [here](https://github.com/espressif/esp-rainmaker).
+- ESP RainMaker is end-to-end IoT development platform which enables development of IoT applications which can be controled remotely.
+- However, the C based ESP RainMaker SDK(which can be found [here](https://github.com/espressif/esp-rainmaker)) only supports execution on Espressif's ESP32 SOCs.
+- This crate tries to  implment similar functionalities for Linux platform along with ESP32(which can furter be extended to other microcontrollers).`
 
-## Build Prerequisites
 
-- Follow the [Prerequisites](https://github.com/esp-rs/esp-idf-template#prerequisites) section in the ``` esp-idf-template``` crate.
-- Install Protobuf compiler on your system.
+## Prerequisites
+
+- Follow the [Prerequisites](https://github.com/esp-rs/esp-idf-template#prerequisites) section in the ``` esp-idf-template``` crate. (only required for running on ESP32)
 - Install ESP-Rainmaker app on your phone.
 
-
-## Get rainmaker-rs
-
-Please clone this repository using the below command:
-
-```bash
-  git clone https://github.com/shreyash-b/rainmaker-rs.git
-```
-
-## Running on ESP devices
-
-1. Erase flash contents:
+## Execution instructions
+### On ESP32 series of devices
+1. Erase flash contents
 
 ```bash
 espflash erase-flash
 ```
 
-2. Use [rainmaker cli](https://rainmaker.espressif.com/docs/cli-setup.html) to perform manual claiming on ESP devices
+2. Use [rainmaker cli](https://rainmaker.espressif.com/docs/cli-setup.html) to perform manual claiming on ESP devices. Claiming is required for providing the device with appropriate certificates for communicating with ESP RainMaker backend.   
+This needs to be performed only first time after flash contents are erased.
 
 ```bash
-./rainmaker.py claim /dev/ttyUSB0 --addr 0x3FA000
+esp-rainmaker-cli claim /dev/ttyUSB0 --addr 0x3FA000
 ```
 
-3. Navigate to rainmaker-rs directory
+3. Build and run the project
 
 ```bash
-cd rainmaker-rs
-```
-
-4. Build the project
-
-```bash
-cargo build
-```
-
-5. Run
-
-```bash
-cargo run --target <mcu-target>
+cargo run --target <mcu-target> --bin <name of example>
 ```
 List of targets for various chipsets:
 
@@ -61,12 +44,6 @@ List of targets for various chipsets:
 | ESP32-C3 | `riscv32imc-esp-espidf` |
 | ESP32-C6 | `riscv32imc-esp-espidf` |
 
-6. Monitor
-
-```bash
-espflash monitor
-```
-
 ## Running on Linux
 
 1. Create directories for storing persistent data
@@ -76,31 +53,28 @@ mkdir -p ~/.config/rmaker/fctry
 mkdir -p ~/.config/rmaker/nvs
 ```
 
-2. Fetch claim data using rainmaker cli
+2. Initialize certificates for your device using esp-rainmaker-cli
 
 ```bash
-./rainmaker.py login
-./rainmaker.py claim --mac <MAC addr> /dev/null
+esp-rainmaker-cli login
+esp-rainmaker-cli claim --mac <MAC addr>
 ```
+The certificates are stored in `/home/<user>/.espressif/rainmaker/claim_data/<account_id>/<mac_address>`
 
 3. Run
 
 ```bash
-cargo run --target x86_64-unknown-linux-gnu
+cargo run --target x86_64-unknown-linux-gnu --bin <example>
+```
 OR
-cargo run_linux
+```bash
+cargo run_linux --bin <example>
 ```
 
 Once the example is running, open the rainmaker mobile application and follow on-screen instructions for adding device
 
 
-When running for the first time, you'll need to set ```RMAKER_CLAIMDATA_PATH``` environment variable to the folder containing your claim data (mentioned in before running section)
+When running for the first time, you'll need to set ```RMAKER_CLAIMDATA_PATH``` environment variable to the folder containing your claim data (mentioned in step )
 
 
----
-
-### Note
-
-- **When running on ESP32 for first time, on initial boot it will start wifi provisioning and user node mapping.**
-- **After performing wifi provisioning using Rainmaker Android application restart the ESP32 for normal functioning**
 ---

@@ -52,7 +52,7 @@ impl From<&mut Request<&mut EspHttpConnection<'_>>> for HttpRequest {
     }
 }
 
-impl<'a> HttpServer<esp_idf_svc::http::server::EspHttpServer<'a>> {
+impl HttpServer<esp_idf_svc::http::server::EspHttpServer<'static>> {
     pub fn new(config: HttpConfiguration) -> Result<Self, Error> {
         let http_config = esp_idf_svc::http::server::Configuration {
             http_port: config.port,
