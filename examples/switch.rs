@@ -45,7 +45,7 @@ fn main() -> Result<()> {
 
     // Declare it here since we want wifi to be connected after connect_wifi returns
     let wifi_arc_mutex = Arc::new(Mutex::new(WifiMgr::new()?));
-    connect_wifi(&rmaker, wifi_arc_mutex.clone())?;
+    connect_wifi(rmaker, wifi_arc_mutex.clone())?;
 
     log::info!("WiFi connected successfully");
 

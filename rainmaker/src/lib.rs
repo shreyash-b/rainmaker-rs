@@ -1,16 +1,16 @@
 #![feature(trait_alias)]
 
 //! # Rust Implementation of ESP Rainmaker.
-//! 
+//!
 //! A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux using Rust.
-//! 
+//!
 //! Full fledged C based ESP RainMaker SDK can be found [here](https://github.com/espressif/esp-rainmaker).
 
 pub mod device;
 pub mod error;
 pub mod node;
-pub(crate) mod proto;
 pub mod param;
+pub(crate) mod proto;
 pub(crate) mod utils;
 
 mod constants;
@@ -59,11 +59,11 @@ static mut RAINMAKER: OnceLock<Rainmaker> = OnceLock::new();
 
 impl Rainmaker {
     /// Initializes the RainMaker Agent.
-    /// 
+    ///
     /// Throws an error if agent is already initialized else returns the mutable reference of Rainmaker.
-    /// 
+    ///
     /// This function panics if node claiming is not performed.
-    /// 
+    ///
     /// For claiming process, ensure following steps are performed:
     /// - Install [`esp-rainmaker-cli`](https://rainmaker.espressif.com/docs/cli-setup/) package.
     /// - - For ESP:
@@ -99,8 +99,8 @@ impl Rainmaker {
     }
 
     /// Starts the RainMaker core task which includes connect to RainMaker cloud over MQTT if hasn't been already.
-    /// 
-    /// Reports node configuration and initial values of parameters, subscribe to respective topics and wait for commands. 
+    ///
+    /// Reports node configuration and initial values of parameters, subscribe to respective topics and wait for commands.
     /// # Ensure agent(node) is initialized and WiFi is connected before using this function.
     pub fn start(&mut self) -> Result<(), RMakerError> {
         // initialize mqtt if not done already
@@ -138,7 +138,7 @@ impl Rainmaker {
     }
 
     /// Registers node to agent.
-    /// 
+    ///
     /// This should be called before the `start()` function.
     /// # Example
     /// ```rust
@@ -147,13 +147,13 @@ impl Rainmaker {
     /// rmaker.register_node();
     /// rmaker.start();
     /// ```
-    /// 
+    ///
     pub fn register_node(&mut self, node: Node) {
         self.node = Some(node.into());
     }
 
     /// Registers the endpoint used for claiming process with `WiFiProvMgr`. This is used for associating a RainMaker node with the user account performing the provisioning.
-    /// 
+    ///
     /// This should be called before `WiFiProvMgr::start()`
     pub fn reg_user_mapping_ep<T: WiFiProvTransportTrait>(&self, prov_mgr: &mut WifiProvMgr<T>) {
         let node_id = self.get_node_id();
@@ -272,10 +272,10 @@ fn cloud_user_assoc_callback(_ep: &str, data: &[u8], node_id: &str) -> Vec<u8> {
     out_vec
 }
 
-/// Reports parameters values of devices to the RainMaker cloud over MQTT. 
-/// 
+/// Reports parameters values of devices to the RainMaker cloud over MQTT.
+///
 /// Appropriate Device Name and a map of parameters(name: value) must be provided.
-/// 
+///
 /// Example (Can be used in a device callback function)
 /// ```
 /// fn device_cb(params: HashMaps<String, Value>)
@@ -290,6 +290,10 @@ pub fn report_params(device_name: &str, params: HashMap<String, Value>) {
         device_name: params
     });
 
-    let local_params_topic = format!("node/{}/{}", NODEID.as_str(), NODE_PARAMS_LOCAL_TOPIC_SUFFIX);
+    let local_params_topic = format!(
+        "node/{}/{}",
+        NODEID.as_str(),
+        NODE_PARAMS_LOCAL_TOPIC_SUFFIX
+    );
     rmaker_mqtt::publish(&local_params_topic, updated_params.to_string().into_bytes()).unwrap();
 }

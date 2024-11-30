@@ -2,7 +2,6 @@
 
 pub mod ws2812;
 
-use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use components::{
     persistent_storage::NvsPartition,
@@ -10,6 +9,7 @@ use components::{
     wifi_prov::{WiFiProvMgrBle, WifiProvBleConfig},
 };
 use rainmaker::Rainmaker;
+use std::sync::{Arc, Mutex};
 
 pub fn initializse_logger() {
     #[cfg(target_os = "linux")]

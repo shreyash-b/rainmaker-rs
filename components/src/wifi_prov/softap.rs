@@ -43,8 +43,11 @@ impl WiFiProvTransportSoftAp {
 
 impl WiFiProvTransportTrait for WiFiProvTransportSoftAp {
     fn start(&mut self) -> Result<(), crate::error::Error> {
-        let mut wifi_ap_config = WifiApConfig::default();
-        wifi_ap_config.ssid = self.service_name.clone();
+        let mut wifi_ap_config = WifiApConfig {
+            ssid: self.service_name.clone(),
+            ..Default::default()
+        };
+
         let key = &self.service_key;
         if key.is_some() {
             wifi_ap_config.password = key.as_ref().unwrap().clone();
