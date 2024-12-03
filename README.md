@@ -5,15 +5,27 @@ A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux us
 
 - ESP RainMaker is end-to-end IoT development platform which enables development of IoT applications which can be controled remotely.
 - However, the C based ESP RainMaker SDK(which can be found [here](https://github.com/espressif/esp-rainmaker)) only supports execution on Espressif's ESP32 SOCs.
-- This crate tries to  implment similar functionalities for Linux platform along with ESP32(which can furter be extended to other microcontrollers).`
+- This crate tries to  implment similar functionalities for Linux platform along with ESP32(which can further be extended to other microcontrollers).
+
+## What is working  
+- [x] WiFi Provisioning*: \
+      Providing WiFi for a new device. No need to hardcode WiFi credentials!
+- [x] Remote Control: \
+      Controlling Devices connected to a node over internet using phone application.
+- [x] User Node Association: \
+      Associating a specific node to a user account for control.
+- [x] Device sharing: \
+      Share access to a device with multiple members.
+- [x] Contol using Home Assistants: \
+      RainMaker devices can be added to and controlled using Amazon Alexa / Google Home. More details [here](https://rainmaker.espressif.com/docs/3rd-party#enabling-alexa)
+
+\* Currently only supported on ESP32
 
 
 ## Prerequisites
+Refer [this](docs/PREREQUISITES.md) for setting up environment for building and running rainmaker-rs application.
 
-- Follow the [Prerequisites](https://github.com/esp-rs/esp-idf-template#prerequisites) section in the ``` esp-idf-template``` crate. (only required for running on ESP32)
-- Install ESP-Rainmaker app on your phone.
-
-## Execution instructions
+## Executing Examples
 ### On ESP32 series of devices
 1. Erase flash contents
 
@@ -21,13 +33,7 @@ A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux us
 espflash erase-flash
 ```
 
-2. Use [rainmaker cli](https://rainmaker.espressif.com/docs/cli-setup.html) to perform manual claiming on ESP devices. Claiming is required for providing the device with appropriate certificates for communicating with ESP RainMaker backend.   
-This needs to be performed only first time after flash contents are erased.
-
-```bash
-esp-rainmaker-cli claim /dev/ttyUSB0 --addr 0x3FA000
-```
-
+2. Make sure claiming is performed for your MCU(mentioned in [prerequisites](/docs/PREREQUISITES.md)) 
 3. Build and run the project
 
 ```bash
@@ -53,13 +59,8 @@ mkdir -p ~/.config/rmaker/fctry
 mkdir -p ~/.config/rmaker/nvs
 ```
 
-2. Initialize certificates for your device using esp-rainmaker-cli
-
-```bash
-esp-rainmaker-cli login
-esp-rainmaker-cli claim --mac <MAC addr>
-```
-The certificates are stored in `/home/<user>/.espressif/rainmaker/claim_data/<account_id>/<mac_address>`
+2. Make sure claiming is performed for your MCU(mentioned in [prerequisites](/docs/PREREQUISITES.md)) 
+The claimdata is stored in `/home/<user>/.espressif/rainmaker/claim_data/<account_id>/<mac_address>`
 
 3. Run
 
@@ -76,5 +77,12 @@ Once the example is running, open the rainmaker mobile application and follow on
 
 When running for the first time, you'll need to set ```RMAKER_CLAIMDATA_PATH``` environment variable to the folder containing your claim data (mentioned in step )
 
-
 ---
+
+## Or you can create a new project based on rainmaker-rs template 
+- Install `cargo-generate` \
+`$ cargo install cargo-generate`
+- Create a new project \
+`$ cargo generate rainmaker-rs/template`
+
+More information about the generated template can be found at it's respective repository [here](https://github.com/rainmaker-rs/template)
