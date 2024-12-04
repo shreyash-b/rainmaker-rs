@@ -12,8 +12,8 @@ impl fmt::Display for RMakerError {
     }
 }
 
-impl From<components::error::Error> for RMakerError {
-    fn from(value: components::error::Error) -> Self {
+impl From<rainmaker_components::error::Error> for RMakerError {
+    fn from(value: rainmaker_components::error::Error) -> Self {
         let msg = value.to_string();
         Self(msg)
     }

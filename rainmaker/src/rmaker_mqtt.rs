@@ -3,8 +3,8 @@ use std::{
     sync::{atomic::AtomicBool, LazyLock, OnceLock, RwLock},
 };
 
-use components::{
-    mqtt::{MqttClient, MqttConfiguration, MqttEvent, ReceivedMessage, TLSconfiguration},
+use rainmaker_components::{
+    mqtt::{MqttClient, MqttConfiguration, MqttEvent, QoSLevel, ReceivedMessage, TLSconfiguration},
     persistent_storage::{Nvs, NvsPartition},
 };
 
@@ -90,7 +90,7 @@ fn mqtt_callback(event: MqttEvent) {
             let mut mqtt = MQTT_INNER.get().unwrap().lock().unwrap();
             for topic in MQTT_CBS.read().unwrap().keys() {
                 if mqtt
-                    .subscribe(topic, &components::mqtt::QoSLevel::AtLeastOnce)
+                    .subscribe(topic, &QoSLevel::AtLeastOnce)
                     .is_err()
                 {
                     log::error!("could not subscribe to {}", topic)
@@ -99,7 +99,7 @@ fn mqtt_callback(event: MqttEvent) {
             for (topic, payload) in PUBLISH_QUEUE.read().unwrap().iter() {
                 mqtt.publish(
                     topic,
-                    &components::mqtt::QoSLevel::AtLeastOnce,
+                    &QoSLevel::AtLeastOnce,
                     payload.to_vec(),
                 );
             }
@@ -134,7 +134,7 @@ pub(crate) fn publish(topic: &str, payload: Vec<u8>) -> Result<(), RMakerError> 
             if CONNECTED.load(std::sync::atomic::Ordering::SeqCst) {
                 client.lock().unwrap().publish(
                     topic,
-                    &components::mqtt::QoSLevel::AtLeastOnce,
+                    &QoSLevel::AtLeastOnce,
                     payload,
                 );
             } else {
@@ -161,7 +161,7 @@ pub(crate) fn subscribe(topic: &str, cb: impl TopicCb) -> Result<(), RMakerError
                 client
                     .lock()
                     .unwrap()
-                    .subscribe(topic, &components::mqtt::QoSLevel::AtLeastOnce)?;
+                    .subscribe(topic, &QoSLevel::AtLeastOnce)?;
             }
 
             MQTT_CBS

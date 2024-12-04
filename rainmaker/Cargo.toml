@@ -16,7 +16,7 @@ keywords = ["iot", "linux", "esp", "home automation"]
 
 [dependencies]
 anyhow = { version = "1.0.79", default-features = false }
-components = { version = "0.1.0", path = "../components" }
+rainmaker-components = { version = "0.1.0" }
 log = { version = "0.4.20", default-features = false }
 serde = { version = "1.0.196", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }

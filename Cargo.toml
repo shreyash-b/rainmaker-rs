@@ -1,6 +1,9 @@
 [workspace]
-members = ["components", "rainmaker", "examples"]
+members = ["rainmaker", "examples"]
 resolver = "2"
+
+[patch.crates-io]
+rainmaker-components = { git = "https://github.com/rainmaker-rs/rainmaker-components" }
 
 [profile.dev]
 opt-level = "z"
