@@ -1,7 +1,7 @@
 [package]
 name = "rainmaker"
 authors = ["Shreyash Bubane <bubaneshreyash3@gmail.com>", "Chinmay Dixit <chinmaydixit2303@gmail.com"]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "Rust Implementation of ESP RainMaker Agent."
