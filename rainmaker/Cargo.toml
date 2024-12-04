@@ -10,7 +10,7 @@ repository = "https://github.com/rainmaker-rs/rainmaker"
 rust-version = "1.80"
 readme = "cio.md"
 categories = ["embedded"]
-keywords = ["iot", "linux", "esp", "home automation"]
+keywords = ["iot", "linux", "esp", "home-automation"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
