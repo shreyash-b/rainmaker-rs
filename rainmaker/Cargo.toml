@@ -1,8 +1,16 @@
 [package]
 name = "rainmaker"
+authors = ["Shreyash Bubane <bubaneshreyash3@gmail.com>", "Chinmay Dixit <chinmaydixit2303@gmail.com"]
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
+description = "Rust Implementation of ESP RainMaker Agent."
+documentation = "https://docs.rs/rainmaker"
+repository = "https://github.com/shreyash-b/rainmaker-rs"
+rust-version = "1.80"
+readme = "cio.md"
+categories = ["embedded", "std"]
+keywords = ["iot", "linux", "esp", "home automation"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
