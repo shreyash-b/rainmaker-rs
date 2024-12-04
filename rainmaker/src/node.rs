@@ -1,4 +1,8 @@
 //! Node module of rainmaker-rs.
+//! A node in RainMaker an entity controls one/more devices.
+//! Devices can be created and added to the [Node] instance.
+//! When there is any change wrt any device(like param update), it's appropriate methods are called
+//! by [Node] instance
 //!
 //! Methods related node are implemented for struct [Node].
 

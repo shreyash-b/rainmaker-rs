@@ -1,6 +1,8 @@
 //! Device module.
 //!
-//! One or more devices can be created and registered with node using device module.
+//! One or more devices can be created and registered with node using device module. Device is a
+//! physical entity which associated with a node and can be controlled from ESP-RainMaker
+//! Dashboard. One or more devices can be created and registered with node using device module.
 //!
 //! Example for creating an instance of device:
 //! ```rust
