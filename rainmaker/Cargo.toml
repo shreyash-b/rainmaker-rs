@@ -6,7 +6,7 @@ edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "Rust Implementation of ESP RainMaker Agent."
 documentation = "https://docs.rs/rainmaker"
-repository = "https://github.com/shreyash-b/rainmaker-rs"
+repository = "https://github.com/rainmaker-rs/rainmaker"
 rust-version = "1.80"
 readme = "cio.md"
 categories = ["embedded"]
@@ -16,7 +16,7 @@ keywords = ["iot", "linux", "esp", "home automation"]
 
 [dependencies]
 anyhow = { version = "1.0.79", default-features = false }
-components = { path = "../components" }
+components = { version = "0.1.0", path = "../components" }
 log = { version = "0.4.20", default-features = false }
 serde = { version = "1.0.196", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
