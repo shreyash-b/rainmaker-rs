@@ -7,7 +7,6 @@ publish = false
 
 [dependencies]
 rainmaker = { path = "../rainmaker" }
-components = { path = "../components" }
 serde_json = "1.0.128"
 log = "0.4.22"
 anyhow = "1.0.93"

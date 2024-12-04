@@ -3,8 +3,9 @@
 pub mod ws2812;
 
 use anyhow::Result;
-use components::{
+use rainmaker::components::{
     persistent_storage::NvsPartition,
+    protocomm::ProtocommSecurity,
     wifi::{WifiClientConfig, WifiMgr},
     wifi_prov::{WiFiProvMgrBle, WifiProvBleConfig},
 };
@@ -33,7 +34,7 @@ pub fn connect_wifi(
         wifi_arc_mutex.clone(),
         prov_config,
         nvs_partition,
-        components::protocomm::ProtocommSecurity::new_sec1(None),
+        ProtocommSecurity::new_sec1(None),
     )?;
     if let Some((ssid, password)) = prov_mgr.is_provisioned() {
         log::info!("Node already provisioned. Trying to connect");

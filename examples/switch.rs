@@ -1,6 +1,6 @@
 use anyhow::Result;
-use components::wifi::WifiMgr;
 use examples::{connect_wifi, initializse_logger};
+use rainmaker::components::wifi::WifiMgr;
 use rainmaker::{
     device::{Device, DeviceType},
     node::Node,

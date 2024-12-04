@@ -15,6 +15,9 @@ pub(crate) mod utils;
 
 mod constants;
 mod rmaker_mqtt;
+
+// expose components crate for use in downstream crates
+pub use components;
 use components::{
     mqtt::ReceivedMessage,
     persistent_storage::{Nvs, NvsPartition},

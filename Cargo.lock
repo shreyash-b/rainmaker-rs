@@ -925,7 +925,6 @@ name = "examples"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "components",
  "embuild 0.31.4",
  "esp-idf-svc",
  "log",
