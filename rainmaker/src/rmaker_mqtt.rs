@@ -89,19 +89,12 @@ fn mqtt_callback(event: MqttEvent) {
             CONNECTED.store(true, std::sync::atomic::Ordering::SeqCst);
             let mut mqtt = MQTT_INNER.get().unwrap().lock().unwrap();
             for topic in MQTT_CBS.read().unwrap().keys() {
-                if mqtt
-                    .subscribe(topic, &QoSLevel::AtLeastOnce)
-                    .is_err()
-                {
+                if mqtt.subscribe(topic, &QoSLevel::AtLeastOnce).is_err() {
                     log::error!("could not subscribe to {}", topic)
                 };
             }
             for (topic, payload) in PUBLISH_QUEUE.read().unwrap().iter() {
-                mqtt.publish(
-                    topic,
-                    &QoSLevel::AtLeastOnce,
-                    payload.to_vec(),
-                );
+                mqtt.publish(topic, &QoSLevel::AtLeastOnce, payload.to_vec());
             }
         }
 
@@ -132,11 +125,10 @@ pub(crate) fn publish(topic: &str, payload: Vec<u8>) -> Result<(), RMakerError> 
     match MQTT_INNER.get() {
         Some(client) => {
             if CONNECTED.load(std::sync::atomic::Ordering::SeqCst) {
-                client.lock().unwrap().publish(
-                    topic,
-                    &QoSLevel::AtLeastOnce,
-                    payload,
-                );
+                client
+                    .lock()
+                    .unwrap()
+                    .publish(topic, &QoSLevel::AtLeastOnce, payload);
             } else {
                 // mqtt is not connected. store to publish when connected
                 log::info!("mqtt not connected. queueing message");

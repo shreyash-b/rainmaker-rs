@@ -17,17 +17,17 @@ mod constants;
 mod rmaker_mqtt;
 
 // expose rainmaker_components crate for use in downstream crates
+use constants::*;
+use error::RMakerError;
+use node::Node;
+use proto::esp_rmaker_user_mapping::*;
+use quick_protobuf::{MessageWrite, Writer};
 pub use rainmaker_components as components;
 use rainmaker_components::{
     mqtt::ReceivedMessage,
     persistent_storage::{Nvs, NvsPartition},
     wifi_prov::{WiFiProvTransportTrait, WifiProvMgr},
 };
-use constants::*;
-use error::RMakerError;
-use node::Node;
-use proto::esp_rmaker_user_mapping::*;
-use quick_protobuf::{MessageWrite, Writer};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
