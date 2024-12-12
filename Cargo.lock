@@ -1617,7 +1617,7 @@ dependencies = [
 
 [[package]]
 name = "rainmaker"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "esp-idf-svc",

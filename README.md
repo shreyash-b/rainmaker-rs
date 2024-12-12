@@ -21,6 +21,13 @@ A cross-platform implementation of ESP Rainmaker for ESP32 products and Linux us
 
 \* Currently only supported on ESP32
 
+## WIP / Not started
+- [ ] Local Control: \
+      Controlling nodes on same LAN without directly without going through the cloud.
+- [ ] OTA: \
+      Support updating firmware over internet.
+- [ ] Assisted Claiming: \
+      Using the capability of phone application to perform node claiming during the provisioning workflow.
 
 ## Prerequisites
 Refer [this](docs/PREREQUISITES.md) for setting up environment for building and running rainmaker-rs application.
