@@ -1,7 +1,7 @@
 # Examples 
 
 ## 1. Switch
-- [Code](switch.rs)
+- [Code](src/bin/switch/switch.rs)
 - How to run 
 ```bash
 cargo run --target <target> --bin switch
@@ -10,7 +10,7 @@ cargo run --target <target> --bin switch
 This is a basic example demonstrating building applications intended for running on ESP32 as well as on Linux systems. Provides a `Switch` device having an On/Off toggle representing an actual switch. Toggling power in the phone application logs corresponding change in console.
 
 ## 2. LED
-- [Code](led.rs)
+- [Code](src/bin/led/led.rs)
 - How to run 
 ```bash
 cargo run --target <target> --bin led

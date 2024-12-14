@@ -20,11 +20,11 @@ rgb = "0.8.50"
 
 [[bin]]
 name = "switch"
-path = "switch.rs"
+path = "src/bin/switch/switch.rs"
 
 [[bin]]
 name = "led"
-path = "led.rs"
+path = "src/bin/led/led.rs"
 
 [build-dependencies]
 embuild = { version = "0.31.4", default-features = false, features = [
